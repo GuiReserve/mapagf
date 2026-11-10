@@ -328,7 +328,19 @@ let necAba = 'cias', necQ = '', necTudo = false;
 /* logos enviados pelo usuário (IndexedDB) */
 const logos = new Map();
 const siglas = n => { const w = String(n).replace(/[()]/g, '').split(/\s+/).filter(x => x && !/^(de|do|da|das|dos|e|S\.A\.)$/i.test(x)); return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase(); };
-const selo = (c, cls = '') => logos.has(c.id) ? `<span class="selo img ${cls}"><img src="${logos.get(c.id)}" alt=""></span>` : `<span class="selo ${cls}" aria-hidden="true">${esc(siglas(c.nome))}</span>`;
+const SITES = window.SITES || {}, falhou = new Set();
+const icoSite = d => `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${d}&size=128`;
+const selo = (c, cls = '') => {
+  if (logos.has(c.id)) return `<span class="selo img ${cls}"><img src="${logos.get(c.id)}" alt=""></span>`;
+  const d = SITES[c.id];
+  if (d && !falhou.has(d)) return `<span class="selo img ${cls}" data-sig="${esc(siglas(c.nome))}"><img src="${icoSite(d)}" alt="" data-dom="${esc(d)}" loading="lazy" referrerpolicy="no-referrer"></span>`;
+  return `<span class="selo ${cls}" aria-hidden="true">${esc(siglas(c.nome))}</span>`;
+};
+/* ícone que não carregou (sem rede, bloqueado ou inexistente) vira as iniciais */
+document.addEventListener('error', ev => {
+  const im = ev.target; if (!im || !im.dataset || !im.dataset.dom) return;
+  falhou.add(im.dataset.dom); const sp = im.parentNode; sp.classList.remove('img'); sp.textContent = sp.dataset.sig || '';
+}, true);
 async function carregaLogos() {
   for (const id of Object.keys(S.reg)) if (S.reg[id].logo && !logos.has(id)) { const b = await arqGet('logo-' + id); if (b) logos.set(id, URL.createObjectURL(b)); }
 }
@@ -575,7 +587,7 @@ function renderFicha() {
   ficha.innerHTML = `
     <header class="f-head">
       <div class="f-tit">
-        <div class="f-badges"><span class="ini ${c.ini === 'Privada' ? 'priv' : 'pub'}">${pinIco(c.ini, '', 10)}${esc(c.ini)}</span>${l ? `<span class="stp" style="--c:var(--st-${l.estagio})">${EST[l.estagio]}</span>` : ''}</div>
+        <div class="f-badges"><span class="ini ${c.ini === 'Privada' ? 'priv' : 'pub'}">${pinIco(c.ini, '', 10)}${esc(c.ini)}</span>${l ? `<span class="stp" style="--c:var(--st-${l.estagio})">${EST[l.estagio]}</span><button class="link danger sm" type="button" data-act="rem-lead" data-id="${esc(sel)}">Remover lead</button>` : ''}</div>
         <h2 id="ficha-titulo">${esc(c.nome)}</h2>
         <p class="f-sub">${esc(c.cidade)}, ${esc(c.uf)}${c.grupo ? ' · ' + esc(c.grupo) : ''}</p>
       </div>
