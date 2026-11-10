@@ -955,3 +955,17 @@ i.sw.f-1, i.sw.f-2, i.sw.f-3 { background: var(--fc); border-color: transparent;
   .nc .selo { width: 30px; height: 30px; font-size: 12px; }
   .nc .pos { width: 16px; }
 }
+/* escopo do ranking: região e estado */
+.esc { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--surface-2); }
+.esc-r { background: var(--surface); width: 100%; }
+.esc-r button { flex: 1 1 auto; justify-content: center; }
+.esc-u { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.esc-u select { flex: 1; min-height: 40px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.card .esc-u { min-width: 240px; }
+a.q4 { text-decoration: none; }
+.rx-rk { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rx-rk > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 9px 11px; border-radius: 12px; border: 1px solid var(--line); border-left: 4px solid var(--fc); background: var(--surface); }
+.rx-rk span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.rx-rk b { font-family: "Bricolage Grotesque", sans-serif; font-size: 18px; }
+.rx-rk .qd { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--ft); }
+@media (max-width: 640px) { .card .esc-u { min-width: 0; width: 100%; } .blk-h { flex-wrap: wrap; } }

@@ -256,6 +256,28 @@ const FX = {
   3: ['Menos necessidade', 'Acompanhar e visitar quando estiver na rota.']
 };
 const FORD = [1, 2, 3];
+/* o ranking é sempre dentro de um estado ou de uma região */
+const noEsc = uf => (!F.uf || uf === F.uf) && (!F.regiao || REG_DE[uf] === F.regiao);
+const nomeEsc = () => F.uf ? UF_NOMES[F.uf] : F.regiao;
+let NECUFS = new Set();
+function garanteEscopo() {
+  if (corMapa !== 'nec' || F.uf || F.regiao) return false;
+  let r = 'Sudeste'; try { r = localStorage.getItem('gf-nec-reg') || r; } catch (e) { /* idem */ }
+  F.regiao = REGIOES[r] ? r : 'Sudeste'; return true;
+}
+function necCalc() {
+  const fc = faixasCias(c => noEsc(c.uf));
+  terca(RK.filter(x => noEsc(x.uf)).sort((a, b) => b.nota - a.nota));
+  const reg = F.uf ? REG_DE[F.uf] : F.regiao;
+  NECUFS = new Set(REGIOES[reg]);
+  terca(REGIOES[reg].map(u => UFM[u]).filter(Boolean).sort((a, b) => b.nota - a.nota));
+  return fc;
+}
+function rankInfo(id, filtro) {
+  const l = companhias().filter(filtro).map(c => necDe(c.id)).filter(Boolean).sort((a, b) => b.nota - a.nota || (a.est ? 1 : 0) - (b.est ? 1 : 0));
+  const i = l.findIndex(o => o.id === id), n = l.length;
+  return i < 0 ? null : { pos: i + 1, n, t: i < n / 3 ? 1 : i < 2 * n / 3 ? 2 : 3 };
+}
 const fxChip = t => `<span class="qd f-${t}">${FX[t][0]}</span>`;
 const diag = o => `Perdas ${o.pp >= .5 ? 'acima' : 'abaixo'} da mediana · investimento ${o.pi >= .5 ? 'acima' : 'abaixo'} da mediana`;
 const terca = l => { const n = l.length; l.forEach((o, i) => { o.t = i < n / 3 ? 1 : i < 2 * n / 3 ? 2 : 3; o.pos = i + 1; }); return l; };
@@ -277,7 +299,7 @@ const NEC = (() => {
   return Object.fromEntries(calcNec(l).map(o => [o.id, o]));
 })();
 const UFM = {};
-RK.forEach(x => { const o = UFM[x.uf] = UFM[x.uf] || { n: 0, pp: 0, pi: 0, ipd: 0, nota: 0 }; o.n++; o.pp += x.pp; o.pi += x.pi; o.ipd += x.ipd; o.nota += x.nota; });
+RK.forEach(x => { const o = UFM[x.uf] = UFM[x.uf] || { uf: x.uf, n: 0, pp: 0, pi: 0, ipd: 0, nota: 0 }; o.n++; o.pp += x.pp; o.pi += x.pi; o.ipd += x.ipd; o.nota += x.nota; });
 Object.values(UFM).forEach(o => { o.pp /= o.n; o.pi /= o.n; o.ipd /= o.n; o.nota /= o.n; });
 terca(Object.values(UFM).sort((a, b) => b.nota - a.nota));
 const ESTC = {};
@@ -288,7 +310,7 @@ function necDe(id) {
   const pp = (u.pp * u.n + .5 * 3) / (u.n + 3), pi = (u.pi * u.n + .5 * 3) / (u.n + 3);
   return ESTC[id] = ESTC[id] || { id, est: true, uf: c.uf, pp, pi, nota: Math.round((pp + pi) * 50) / 10, ipdUF: u.ipd, nUF: u.n, cid: [] };
 }
-function faixasCias() { return terca(companhias().map(c => necDe(c.id)).filter(Boolean).sort((a, b) => b.nota - a.nota || (a.est ? 1 : 0) - (b.est ? 1 : 0))); }
+function faixasCias(filtro = () => true) { return terca(companhias().filter(filtro).map(c => necDe(c.id)).filter(Boolean).sort((a, b) => b.nota - a.nota || (a.est ? 1 : 0) - (b.est ? 1 : 0))); }
 const num1 = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const nf = v => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const mm = v => v >= 1000 ? 'R$ ' + num1(v / 1000) + ' bi' : 'R$ ' + Math.round(v).toLocaleString('pt-BR') + ' mi';
@@ -310,13 +332,14 @@ function corCalor(t) {
   return t <= .5 ? `color-mix(in srgb, var(--hm-2) ${Math.round(t * 200)}%, var(--hm-1))` : `color-mix(in srgb, var(--hm-3) ${Math.round((t - .5) * 200)}%, var(--hm-2))`;
 }
 function renderMapa() {
+  const necFc = corMapa === 'nec' ? necCalc() : null;
   const lista = filtradas(), cal = calor(lista);
   const max = Math.max(1, ...Object.values(cal).map(o => o.s));
   svg.querySelectorAll('path.uf').forEach(p => {
     const uf = p.dataset.uf, fora = (F.regiao && REG_DE[uf] !== F.regiao) || (F.uf && uf !== F.uf);
     p.setAttribute('class', `uf ${corMapa === 'regiao' ? 'rg-' + REG_CLS[REG_DE[uf]] : 'heat'}${fora ? ' dim' : ''}${F.uf === uf ? ' foco' : ''}`);
     const o = cal[uf], tq = o ? (o.alta ? 'alta' : o.media ? 'media' : 'baixa') : '';
-    p.style.fill = corMapa === 'nec' ? (UFM[uf] ? `var(--uf${UFM[uf].t})` : 'var(--land)') : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
+    p.style.fill = corMapa === 'nec' ? (UFM[uf] && NECUFS.has(uf) ? `var(--uf${UFM[uf].t})` : 'var(--land)') : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
   });
   $('#cor-toggle').innerHTML = [['temp', 'Temperatura'], ['regiao', 'Região'], ['nec', 'Necessidade']].map(([v, t]) => `<button type="button" class="${corMapa === v ? 'on' : ''}" aria-pressed="${corMapa === v}" data-act="cor" data-v="${v}">${t}</button>`).join('');
   const pinos = `<div class="lg-row"><span>${pinIco('Pública', '', 11)}Pública</span><span>${pinIco('Privada', '', 11)}Privada</span></div>`;
@@ -324,11 +347,11 @@ function renderMapa() {
   $('#view-mapa').classList.toggle('nec', corMapa === 'nec');
   $('#nec-painel').hidden = corMapa !== 'nec';
   if (corMapa === 'nec') {
-    const fc = faixasCias(), cont = { 1: 0, 2: 0, 3: 0 };
-    (necAba === 'cias' ? fc : RK).forEach(o => { cont[o.t]++; });
-    $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'} por ranking de necessidade</div>
+    const fc = necFc, cont = { 1: 0, 2: 0, 3: 0 };
+    (necAba === 'cias' ? fc : RK.filter(x => noEsc(x.uf))).forEach(o => { cont[o.t]++; });
+    $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'}: ranking em ${esc(nomeEsc())}</div>
       <div class="lg-fx" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><i class="sw f-${t}"></i>${FX[t][0]} <b>${cont[t]}</b></button>`).join('')}</div>
-      <div class="lg-t">Estado</div><div class="lg-row">${FORD.map(t => `<span><i class="sw" style="background:var(--uf${t})"></i>${['Mais', 'Média', 'Menos'][t - 1]}</span>`).join('')}</div><p class="lg-n">${necAba === 'cias' ? 'Estado: média das cidades dele no ranking. Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
+      <div class="lg-t">Estado</div><div class="lg-row">${FORD.map(t => `<span><i class="sw" style="background:var(--uf${t})"></i>${['Mais', 'Média', 'Menos'][t - 1]}</span>`).join('')}</div><p class="lg-n">${necAba === 'cias' ? 'Estados da região comparados entre si. Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
     if (necAba === 'cias') { $('#g-nec').innerHTML = ''; renderPinos(lista.filter(c => !necQ || (necDe(c.id) && String(necDe(c.id).t) === necQ))); }
     else { $('#g-pin').innerHTML = ''; renderBolhas(); }
     renderNecPainel(); return;
@@ -384,19 +407,23 @@ function linhaCia(o, num) {
 }
 function renderNecPainel() {
   const box = $('#nec-painel');
-  const fc = faixasCias();
-  const lista = necAba === 'cias'
-    ? fc.filter(o => (!necQ || String(o.t) === necQ) && (!F.uf || o.uf === F.uf || companhia(o.id).uf === F.uf) && (!F.regiao || REG_DE[companhia(o.id).uf] === F.regiao) && passa(companhia(o.id)))
-    : RK.filter(x => (!necQ || String(x.t) === necQ) && (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao)).sort((a, b) => b.nota - a.nota);
+  const fc = faixasCias(c => noEsc(c.uf)), mun = RK.filter(x => noEsc(x.uf)).sort((a, b) => b.nota - a.nota);
+  const base = necAba === 'cias' ? fc : mun;
+  const lista = necAba === 'cias' ? fc.filter(o => (!necQ || String(o.t) === necQ) && passa(companhia(o.id))) : mun.filter(x => !necQ || String(x.t) === necQ);
   const item = necAba === 'cias' ? o => linhaCia(o, true)
     : x => `<li><button type="button" class="nc f-${x.t}" data-act="nec-mun" data-r="${x.r}"><span class="pos">${x.pos}</span><span class="selo mun" aria-hidden="true">${x.uf}</span><span class="nc-t"><strong>${esc(x.m)}</strong><small>${esc(x.op)} · perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia · ${mm(x.inv)} (2020–24)</small></span><b class="nn f-${x.t}">${nf(x.nota)}</b></button></li>`;
-  box.innerHTML = `<div class="np-h"><h2>Ranking de necessidade</h2><p class="hint">Mais perdas de água e mais investimento = mais escuro.</p></div>
+  const reg = F.uf ? REG_DE[F.uf] : F.regiao;
+  box.innerHTML = `<div class="np-h"><h2>Ranking em ${esc(nomeEsc())}</h2><p class="hint">${necAba === 'cias' ? 'Companhias comparadas' : 'Municípios comparados'} só dentro ${F.uf ? 'do estado' : 'da região'}. Mais perdas e mais investimento = mais escuro.</p></div>
+    <div class="esc">
+      <div class="seg sm esc-r" role="group" aria-label="Região">${Object.keys(REGIOES).map(r => `<button type="button" class="${!F.uf && F.regiao === r ? 'on' : ''}" aria-pressed="${!F.uf && F.regiao === r}" data-act="nec-reg" data-v="${r}">${r}</button>`).join('')}</div>
+      <label class="esc-u"><span>Estado</span><select id="nec-uf"><option value="">Toda a região ${esc(reg)}</option>${REGIOES[reg].slice().sort().map(u => `<option value="${u}" ${F.uf === u ? 'selected' : ''}>${esc(UF_NOMES[u])}</option>`).join('')}</select></label>
+    </div>
     <div class="seg sm" role="group" aria-label="Ver no mapa">${[['cias', 'Companhias'], ['mun', 'Municípios']].map(([v, t]) => `<button type="button" class="${necAba === v ? 'on' : ''}" aria-pressed="${necAba === v}" data-act="nec-aba" data-v="${v}">${t}</button>`).join('')}</div>
-    <div class="fx3" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="fx f-${t} ${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><span>${FX[t][0]}</span><b>${(necAba === 'cias' ? fc : RK).filter(o => o.t === t).length}</b></button>`).join('')}</div>
+    <div class="fx3" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="fx f-${t} ${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><span>${FX[t][0]}</span><b>${base.filter(o => o.t === t).length}</b></button>`).join('')}</div>
     ${necQ ? `<p class="np-play"><strong>Como abordar:</strong> ${FX[necQ][1]}</p>` : ''}
-    <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || '<li class="empty">Nada com esses filtros.</li>'}</ol>
+    <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || `<li class="empty">${necAba === 'mun' ? `Nenhum município ${F.uf ? 'deste estado' : 'desta região'} está entre os 100 do ranking.` : 'Nada com esses filtros.'}</li>`}</ol>
     ${lista.length > 12 ? `<button class="btn sm" type="button" data-act="nec-tudo">${necTudo ? 'Mostrar só as 12 primeiras' : `Mostrar todas (${lista.length})`}</button>` : ''}
-    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo do ranking. Companhias sem cidade no ranking recebem a média das cidades do seu estado (marcadas como estimadas).</p>`;
+    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo ${F.uf ? 'do estado' : 'da região'}. Companhias sem cidade no ranking recebem a média das cidades do seu estado (marcadas como estimadas).</p>`;
 }
 function escala() {
   const z = Math.pow(Math.max(.1, k()), .78);
@@ -454,13 +481,13 @@ function eventosMapa() {
     const r = wrap.getBoundingClientRect();
     if (nb) {
       const x = RK.find(y => y.r === +nb.dataset.r);
-      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-fx"><i class="sw f-${x.t}"></i>Necessidade ${nf(x.nota)} · nº ${x.pos} de 100</span>`;
+      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-fx"><i class="sw f-${x.t}"></i>Necessidade ${nf(x.nota)} · nº ${x.pos} em ${esc(nomeEsc())}</span>`;
     } else if (pin) {
       const c = companhia(pin.dataset.id), l = leadDe(c.id);
-      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
+      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos} em ${esc(nomeEsc())}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
     } else if (uf) {
       const u = uf.dataset.uf, o = calor(filtradas())[u], m = UFM[u];
-      if (corMapa === 'nec' && m) tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span class="tip-fx"><i class="sw" style="background:var(--uf${m.t})"></i>Necessidade média ${nf(m.nota)} · nº ${m.pos} de ${Object.keys(UFM).length} estados</span><span>Perdas médias ${num1(m.ipd)}% em ${m.n} ${m.n > 1 ? 'cidades' : 'cidade'} do ranking</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar o estado'}</span>`;
+      if (corMapa === 'nec' && m && NECUFS.has(u)) tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span class="tip-fx"><i class="sw" style="background:var(--uf${m.t})"></i>Necessidade média ${nf(m.nota)} · nº ${m.pos} de ${NECUFS.size} na região ${esc(REG_DE[u])}</span><span>Perdas médias ${num1(m.ipd)}% em ${m.n} ${m.n > 1 ? 'cidades' : 'cidade'} do ranking</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar o estado'}</span>`;
       else tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span>${o ? TEMPS.filter(([t]) => o[t]).map(([t, n]) => `${o[t]} ${n.toLowerCase()}`).join(' · ') : 'Sem leads ativos'}</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar'}</span>`;
     } else { tip.hidden = true; return; }
     tip.style.left = Math.min(Math.max(ev.clientX - r.left, 120), r.width - 120) + 'px';
@@ -561,18 +588,19 @@ function renderFicha() {
   if (foco && document.getElementById(foco)) document.getElementById(foco).focus({ preventScroll: true });
 }
 function raioX(c) {
-  faixasCias();
-  const i = CINFO[c.id] || {}, o = necDe(c.id), semDado = '<span class="sd">Sem dado público levantado</span>', tot = companhias().length;
+  const i = CINFO[c.id] || {}, o = necDe(c.id), semDado = '<span class="sd">Sem dado público levantado</span>';
+  const rU = o && rankInfo(c.id, x => x.uf === c.uf), rR = o && rankInfo(c.id, x => REG_DE[x.uf] === REG_DE[c.uf]);
   return `<section class="blk rx" aria-labelledby="h-rx">
     <div class="rx-top">${selo(c, 'lg')}<div class="rx-tt"><h3 id="h-rx">Raio-X</h3><label class="link sm file">${logos.has(c.id) ? 'Trocar logo' : 'Adicionar logo'}<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label></div>
-      ${o ? `<div class="rx-n"><b class="nn lg f-${o.t}${o.est ? ' est' : ''}">${nf(o.nota)}</b><small>nº ${o.pos} de ${tot}<br>${o.est ? 'estimada' : 'necessidade'}</small></div>` : ''}</div>
+      ${o ? `<div class="rx-n"><b class="nn lg f-${rU.t}${o.est ? ' est' : ''}">${nf(o.nota)}</b><small>${o.est ? 'nota estimada' : 'necessidade'}<br>de 0 a 10</small></div>` : ''}</div>
     <dl class="rx-dl">
       <div><dt>Municípios atendidos</dt><dd>${i.mun ? esc(i.mun) : semDado}</dd></div>
       <div><dt>Investimento previsto</dt><dd>${i.inv ? esc(i.inv) : semDado}</dd></div>
       ${o && !o.est ? `<div><dt>Perdas de água</dt><dd>${num1(o.ipd)}% · ${Math.round(o.ipl)} L por ligação/dia</dd></div><div><dt>Investiu de 2020 a 2024</dt><dd>${mm(o.inv)}</dd></div>` : ''}
       ${o && o.est ? `<div><dt>Perdas no estado</dt><dd>${num1(o.ipdUF)}% em média</dd></div>` : ''}
     </dl>
-    ${o ? `<p class="rx-q">${fxChip(o.t)}<span>${FX[o.t][1]}</span></p><p class="hint rx-dg">${diag(o)}${o.est ? ' (média do estado)' : ''}.</p>` : ''}
+    ${o ? `<div class="rx-rk"><div class="f-${rU.t}"><span>Em ${esc(UF_NOMES[c.uf])}</span><b>nº ${rU.pos} de ${rU.n}</b>${fxChip(rU.t)}</div><div class="f-${rR.t}"><span>Na região ${esc(REG_DE[c.uf])}</span><b>nº ${rR.pos} de ${rR.n}</b>${fxChip(rR.t)}</div></div>
+    <p class="rx-q"><span>${FX[rU.t][1]}</span></p><p class="hint rx-dg">${diag(o)}${o.est ? ' (média do estado)' : ''}.</p>` : ''}
     ${o && !o.est ? `<details class="rx-cid"><summary>${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no Ranking do Saneamento 2026</summary>
       <div class="tbl-w"><table><thead><tr><th scope="col">Município</th><th scope="col">Perdas</th><th scope="col">L/lig/dia</th><th scope="col">Invest. 2020–24</th><th scope="col">Nota</th></tr></thead>
       <tbody>${o.cid.map(x => `<tr><th scope="row">${esc(x.m)}, ${x.uf}${x.obs ? `<small>${esc(x.obs)}</small>` : ''}</th><td>${num1(x.ipd)}%</td><td>${Math.round(x.ipl)}</td><td>${mm(x.inv)}</td><td><b class="nn f-${x.t}">${nf(x.nota)}</b></td></tr>`).join('')}</tbody></table></div>
@@ -954,7 +982,7 @@ function estr() {
   return E;
 }
 function renderEstrategia() {
-  const abas = [['onde', 'Onde ir'], ['metas', 'Metas'], ['matriz', 'Prioridade']];
+  const abas = [['onde', 'Ranking'], ['metas', 'Metas'], ['matriz', 'Prioridade']];
   if (!['onde', 'metas', 'matriz'].includes(estAba)) estAba = 'onde';
   const corpo = { onde: estOnde, metas: estMetas, matriz: estMatriz }[estAba]();
   $('#view-estrategia').innerHTML = `
@@ -962,17 +990,22 @@ function renderEstrategia() {
     <div class="seg est-tabs" role="group" aria-label="Partes da estratégia">${abas.map(([v, t]) => `<button type="button" class="${estAba === v ? 'on' : ''}" aria-pressed="${estAba === v}" data-act="est-aba" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="est-body">${corpo}</div>`;
 }
+let estEsc = 'r:Sudeste';
+try { estEsc = localStorage.getItem('gf-est-esc') ?? ('r:' + (localStorage.getItem('gf-nec-reg') || 'Sudeste')); } catch (e) { /* idem */ }
 function estOnde() {
-  const fc = faixasCias(), por = {}; FORD.forEach(t => { por[t] = fc.filter(o => o.t === t); });
+  const [tp, v] = estEsc ? estEsc.split(':') : ['', ''];
+  const filtro = c => !tp || (tp === 'r' ? REG_DE[c.uf] === v : c.uf === v);
+  const nome = !tp ? 'Brasil' : tp === 'r' ? v : UF_NOMES[v];
+  const fc = faixasCias(filtro), por = {}; FORD.forEach(t => { por[t] = fc.filter(o => o.t === t); });
   const semLead = por[1].filter(o => !leadDe(o.id));
+  const opts = `<option value="">Brasil inteiro</option>${Object.keys(REGIOES).map(r => `<optgroup label="${r}"><option value="r:${r}" ${estEsc === 'r:' + r ? 'selected' : ''}>Região ${r}</option>${REGIOES[r].slice().sort().map(u => `<option value="u:${u}" ${estEsc === 'u:' + u ? 'selected' : ''}>${esc(UF_NOMES[u])}</option>`).join('')}</optgroup>`).join('')}`;
   return `
-    <section class="card"><div class="blk-h"><div><h2>Onde ir primeiro</h2><p class="hint">Todas as ${fc.length} companhias, da maior para a menor necessidade: mais perdas de água e mais investimento = mais escuro.</p></div><button class="btn sm" type="button" data-act="ver-nec" data-v="">Ver no mapa</button></div>
-      <div class="quad4 q3">${FORD.map(t => `<button type="button" class="q4 f-${t}" data-act="ver-nec" data-v="${t}"><span class="q4-n">${por[t].length}</span><span class="q4-t">${FX[t][0]}</span><span class="q4-p">${FX[t][1]}</span></button>`).join('')}</div>
+    <section class="card"><div class="blk-h"><div><h2>Ranking de necessidade · ${esc(nome)}</h2><p class="hint">${fc.length} companhias, da maior para a menor necessidade: mais perdas de água e mais investimento = mais escuro.</p></div>
+      <label class="esc-u"><span>Ver</span><select id="est-esc">${opts}</select></label></div>
+      <div class="quad4 q3">${FORD.map(t => `<a class="q4 f-${t}" href="#fx-${t}"><span class="q4-n">${por[t].length}</span><span class="q4-t">${FX[t][0]}</span><span class="q4-p">${FX[t][1]}</span></a>`).join('')}</div>
       ${semLead.length ? `<p class="alerta">${semLead.length} ${semLead.length > 1 ? 'companhias de mais necessidade ainda não têm lead' : 'companhia de mais necessidade ainda não tem lead'}: ${semLead.slice(0, 8).map(o => esc(companhia(o.id).nome)).join(', ')}${semLead.length > 8 ? '…' : ''}.</p>` : ''}
-    </section>
-    <section class="card"><div class="blk-h"><h2>Ranking de necessidade</h2><span class="hint">${fc.filter(o => !o.est).length} com dados do ranking · ${fc.filter(o => o.est).length} estimadas pelo estado</span></div>
-      ${FORD.map(t => `<h3 class="fx-h f-${t}"><i class="sw f-${t}"></i>${FX[t][0]}</h3><ol class="nlist rk">${por[t].map(o => linhaCia(o, true)).join('')}</ol>`).join('')}
-      <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo. Companhias sem cidade no ranking recebem a média das cidades do seu estado.</p>
+      ${FORD.map(t => por[t].length ? `<h3 class="fx-h f-${t}" id="fx-${t}"><i class="sw f-${t}"></i>${FX[t][0]}</h3><ol class="nlist rk">${por[t].map(o => linhaCia(o, true)).join('')}</ol>` : '').join('')}
+      <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo de ${esc(nome)}. Companhias sem cidade no ranking recebem a média das cidades do seu estado.</p>
     </section>`;
 }
 function estMetas() {
@@ -1188,7 +1221,7 @@ function renderFaixa() {
   f.hidden = !on;
   if (on) f.innerHTML = '<span><strong>Dados de teste</strong> carregados</span><button class="link" type="button" data-act="rem-exemplos">Apagar</button>';
 }
-function renderTudo() { renderFaixa(); renderFiltros(); renderView(); }
+function renderTudo() { if (garanteEscopo()) focaArea(); renderFaixa(); renderFiltros(); renderView(); }
 function rota() {
   const h = location.hash.replace('#', '');
   view = ['mapa', 'leads', 'estrategia'].includes(h) ? h : 'mapa';
@@ -1214,13 +1247,13 @@ document.addEventListener('click', ev => {
     case 'painel': painel = !painel; renderFiltros(); break;
     case 'limpa-f': if (d.k === 'q') $('#busca').value = ''; aplicaFiltro(d.k, F0[d.k]); break;
     case 'limpa-tudo': F = { ...F0 }; $('#busca').value = ''; focaArea(); renderTudo(); break;
-    case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); renderMapa(); break;
+    case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); renderTudo(); break;
     case 'nec-aba': necAba = d.v; renderMapa(); break;
     case 'nec-tudo': necTudo = !necTudo; renderNecPainel(); break;
     case 'nec-q': necQ = d.v; renderMapa(); break;
     case 'nec-cia': focaCia(d.id); abreFicha(d.id); break;
     case 'nec-mun': { const x = RK.find(y => y.r === +d.r); const [px, py] = proj(x.lat, x.lon), w = VB0[2] / 3.200, hh = w * VB0[3] / VB0[2]; vaiPara([px - w / 2, py - hh / 2, w, hh]); abreOperador(x); break; }
-    case 'ver-nec': necQ = d.v || ''; necAba = 'cias'; corMapa = 'nec'; lembra('gf-cor2', 'nec'); location.hash = '#mapa'; renderTudo(); break;
+    case 'nec-reg': lembra('gf-nec-reg', d.v); F.uf = ''; necTudo = false; aplicaFiltro('regiao', d.v); break;
     case 'nova': formCompanhia(); break;
     case 'editar': formCompanhia(d.id); break;
     case 'autor': formAutor(); break;
@@ -1256,6 +1289,8 @@ document.addEventListener('keydown', ev => {
 });
 $('#busca').addEventListener('input', ev => { F.q = ev.target.value; renderTudo(); });
 document.addEventListener('change', ev => {
+  if (ev.target.id === 'nec-uf') { const u = ev.target.value; necTudo = false; if (u) aplicaFiltro('uf', u); else { const r = F.uf ? REG_DE[F.uf] : F.regiao; F.uf = ''; aplicaFiltro('regiao', r); } return; }
+  if (ev.target.id === 'est-esc') { estEsc = ev.target.value; lembra('gf-est-esc', estEsc); renderEstrategia(); return; }
   const t = ev.target;
   if (t.dataset.f) aplicaFiltro(t.dataset.f, t.type === 'checkbox' ? t.checked : t.value);
   else if (t.dataset.meta || t.dataset.metaResp) {
