@@ -581,7 +581,8 @@ function renderFicha() {
         ${r.atas.length ? `<ul class="atas">${r.atas.slice().sort((a, b) => (b.data || '').localeCompare(a.data || '')).map(a => `<li><span class="arq">${ico('ata', 14)}<span><strong>${esc(a.titulo || a.nome)}</strong><small>${dataBR(a.data)} · ${tamanho(a.tam)}</small></span></span>
           <button class="btn sm" type="button" data-act="baixar-ata" data-id="${a.id}">Baixar</button><button class="link danger sm" type="button" data-act="remover-ata" data-id="${a.id}">Remover</button></li>`).join('')}</ul>` : '<p class="empty">Nenhuma ata. Fotografe ou anexe o arquivo da reunião.</p>'}</section>
       ${l ? `<section class="blk" aria-labelledby="h-fun"><h3 id="h-fun">Funil</h3>${radios('le', ESTAGIOS, l.estagio, 'estagio', 'st')}
-        <label class="col fval"><span>Valor estimado em R$ (opcional)</span><input type="text" inputmode="numeric" id="l-valor" data-lead="valor" value="${l.valor ? Number(l.valor).toLocaleString('pt-BR') : ''}" placeholder="Ex.: 500.000"></label></section>` : ''}
+        <label class="col fval"><span>Valor estimado em R$ (opcional)</span><input type="text" inputmode="numeric" id="l-valor" data-lead="valor" value="${l.valor ? Number(l.valor).toLocaleString('pt-BR') : ''}" placeholder="Ex.: 500.000"></label>
+        <button class="link danger sm rem-lead" type="button" data-act="rem-lead" data-id="${esc(sel)}">Remover lead</button></section>` : ''}
       <section class="blk" aria-labelledby="h-tl"><h3 id="h-tl">Histórico</h3>${timeline(logDe(sel), false)}</section>
     </div>`;
   $('.f-body', ficha).scrollTop = rolagem;
@@ -697,6 +698,14 @@ async function baixaAta(id) {
   try { const u = URL.createObjectURL(blob), lk = document.createElement('a'); lk.href = u; lk.download = a.nome; document.body.append(lk); lk.click(); lk.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
   catch (e) { toast('Não foi possível baixar o arquivo neste navegador.'); }
 }
+function removeLead(id) {
+  const r = reg(id); if (!r.lead) return;
+  const lead = r.lead, log = (r.log || []).slice(), nome = companhia(id).nome;
+  delete r.lead; logar(id, 'lead', 'Lead removido'); salvar();
+  if (ficha.open && sel === id) renderFicha();
+  renderTudo();
+  toast(`Lead de ${nome} removido.`, { rotulo: 'Desfazer', fn: () => { r.lead = lead; r.log = log; salvar(); if (ficha.open && sel === id) renderFicha(); renderTudo(); toast('Lead restaurado.'); } });
+}
 function mudaEstagio(l, s) { l.estagio = s; if (s === 'ganho' || s === 'perdido') l.fechadoEm = hoje(); else delete l.fechadoEm; }
 function criaLead(id, v = {}) {
   reg(id).lead = { estagio: v.estagio || 'prospeccao', temp: v.temp || 'media', resp: v.resp ?? (S.autor || ''), valor: parseValor(v.valor), prox: v.prox || '', proxData: v.proxData || '', criado: hoje() };
@@ -723,12 +732,12 @@ function renderLeads() {
   const temEx = temTeste();
   const card = c => {
     const l = leadDe(c.id), v = vencido(l);
-    return `<div class="lcard" draggable="true" role="button" tabindex="0" data-act="abrir" data-id="${esc(c.id)}" aria-label="${esc(c.nome)}, ${EST[l.estagio]}. Abrir ficha.">
+    return `<div class="lwrap"><button class="lc-del" type="button" data-act="rem-lead" data-id="${esc(c.id)}" aria-label="Remover lead de ${esc(c.nome)}" title="Remover lead">×</button><div class="lcard" draggable="true" role="button" tabindex="0" data-act="abrir" data-id="${esc(c.id)}" aria-label="${esc(c.nome)}, ${EST[l.estagio]}. Abrir ficha.">
       <div class="lc-top">${pinIco(c.ini, tempAt(l), 13)}<strong>${esc(c.nome)}</strong></div>
       <div class="lc-sub">${esc(c.cidade)}, ${esc(c.uf)}</div>
       <div class="lc-tags">${l.temp ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : ''}${l.valor ? `<span class="val">${moedaCurta(l.valor)}</span>` : ''}${l.ex ? '<span class="ex">exemplo</span>' : ''}</div>
       ${PRODUTOS.some(([p]) => (ler(c.id).prod || {})[p]) ? `<div class="lc-prod">${PRODUTOS.filter(([p]) => ler(c.id).prod[p]).map(([, n]) => esc(n.replace('Soluções ', ''))).join(' · ')}</div>` : ''}
-      ${ultimo(c.id) ? `<div class="lc-resp">Última visita: ${dataCurta(ultimo(c.id))}</div>` : ''}</div>`;
+      ${ultimo(c.id) ? `<div class="lc-resp">Última visita: ${dataCurta(ultimo(c.id))}</div>` : ''}</div></div>`;
   };
   const ordena = (a, b) => { const la = leadDe(a.id), lb = leadDe(b.id); return (COL_T[lb.temp] ?? 1) - (COL_T[la.temp] ?? 1) || (lb.valor || 0) - (la.valor || 0); };
   $('#view-leads').innerHTML = `
@@ -1198,11 +1207,12 @@ function formImportar() {
     salvar(); fechaDialogo(); renderAutor(); renderTudo(); toast('Backup importado.');
   });
 }
-function toast(msg) {
+function toast(msg, acao) {
   document.querySelectorAll('.toast').forEach(t => t.remove());
   const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+  if (acao) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-acao'; b.textContent = acao.rotulo; b.addEventListener('click', () => { t.remove(); acao.fn(); }); t.append(b); }
   (dlg.open ? dlg : ficha.open ? ficha : document.body).append(t);
-  setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.remove(), 300); }, 2600);
+  setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.remove(), 300); }, acao ? 6000 : 2600);
 }
 
 /* ---------- ciclo ---------- */
@@ -1236,6 +1246,7 @@ document.addEventListener('click', ev => {
   const d = b.dataset;
   switch (d.act) {
     case 'abrir': abreFicha(d.id, d.aba); break;
+    case 'rem-lead': removeLead(d.id); break;
     case 'ir-cia': focaCia(d.id); abreFicha(d.id); break;
     case 'rapido': abreRapido(d.id || ''); break;
     case 'qr-cia': { const i = $('#qr-cia'); i.value = d.v; i.dispatchEvent(new Event('input')); $('#qr-txt').focus(); } break;
