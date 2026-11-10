@@ -257,20 +257,29 @@ const FX = {
 };
 const FORD = [1, 2, 3];
 /* o ranking é sempre dentro de um estado ou de uma região */
-const noEsc = uf => (!F.uf || uf === F.uf) && (!F.regiao || REG_DE[uf] === F.regiao);
-const nomeEsc = () => F.uf ? UF_NOMES[F.uf] : F.regiao;
+/* escopo próprio do modo Necessidade: não mexe nos filtros gerais */
+let necR = 'Sudeste', necU = '';
+try { const v = localStorage.getItem('gf-nec-reg'); if (v !== null) necR = v === 'todos' ? '' : (REGIOES[v] ? v : 'Sudeste'); necU = localStorage.getItem('gf-nec-uf') || ''; } catch (e) { /* idem */ }
+const noEsc = uf => (!necU || uf === necU) && (!necR || REG_DE[uf] === necR);
+const nomeEsc = () => necU ? UF_NOMES[necU] : necR || 'Brasil';
+const emEsc = () => necU || necR ? 'em ' + nomeEsc() : 'no Brasil';
 let NECUFS = new Set();
-function garanteEscopo() {
-  if (corMapa !== 'nec' || F.uf || F.regiao) return false;
-  let r = 'Sudeste'; try { r = localStorage.getItem('gf-nec-reg') || r; } catch (e) { /* idem */ }
-  F.regiao = REGIOES[r] ? r : 'Sudeste'; return true;
+function focaEsc() {
+  const ufs = necU ? [necU] : necR ? REGIOES[necR] : [];
+  if (!ufs.length) { vaiPara(VB0.slice()); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  ufs.forEach(u => { const b = caixas[u]; x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); });
+  const prop = VB0[2] / VB0[3], h = Math.max(120, Math.max(y1 - y0, (x1 - x0) / prop) * 1.35), w = h * prop;
+  vaiPara([(x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - h / 2, w, h]);
 }
+function mudaEsc(r, u) { necR = r; necU = u; necTudo = false; necQ = ''; lembra('gf-nec-reg', r || 'todos'); lembra('gf-nec-uf', u); focaEsc(); renderMapa(); }
 function necCalc() {
   const fc = faixasCias(c => noEsc(c.uf));
   terca(RK.filter(x => noEsc(x.uf)).sort((a, b) => b.nota - a.nota));
-  const reg = F.uf ? REG_DE[F.uf] : F.regiao;
-  NECUFS = new Set(REGIOES[reg]);
-  terca(REGIOES[reg].map(u => UFM[u]).filter(Boolean).sort((a, b) => b.nota - a.nota));
+  const reg = necU ? REG_DE[necU] : necR;
+  const ufsR = reg ? REGIOES[reg] : Object.keys(UFM);
+  NECUFS = new Set(ufsR);
+  terca(ufsR.map(u => UFM[u]).filter(Boolean).sort((a, b) => b.nota - a.nota));
   return fc;
 }
 function rankInfo(id, filtro) {
@@ -336,8 +345,8 @@ function renderMapa() {
   const lista = filtradas(), cal = calor(lista);
   const max = Math.max(1, ...Object.values(cal).map(o => o.s));
   svg.querySelectorAll('path.uf').forEach(p => {
-    const uf = p.dataset.uf, fora = (F.regiao && REG_DE[uf] !== F.regiao) || (F.uf && uf !== F.uf);
-    p.setAttribute('class', `uf ${corMapa === 'regiao' ? 'rg-' + REG_CLS[REG_DE[uf]] : 'heat'}${fora ? ' dim' : ''}${F.uf === uf ? ' foco' : ''}`);
+    const nm = corMapa === 'nec', uf = p.dataset.uf, fora = nm ? !noEsc(uf) && !!necR : (F.regiao && REG_DE[uf] !== F.regiao) || (F.uf && uf !== F.uf);
+    p.setAttribute('class', `uf ${corMapa === 'regiao' ? 'rg-' + REG_CLS[REG_DE[uf]] : 'heat'}${fora ? ' dim' : ''}${(nm ? necU : F.uf) === uf ? ' foco' : ''}`);
     const o = cal[uf], tq = o ? (o.alta ? 'alta' : o.media ? 'media' : 'baixa') : '';
     p.style.fill = corMapa === 'nec' ? (UFM[uf] && NECUFS.has(uf) ? `var(--uf${UFM[uf].t})` : 'var(--land)') : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
   });
@@ -349,10 +358,10 @@ function renderMapa() {
   if (corMapa === 'nec') {
     const fc = necFc, cont = { 1: 0, 2: 0, 3: 0 };
     (necAba === 'cias' ? fc : RK.filter(x => noEsc(x.uf))).forEach(o => { cont[o.t]++; });
-    $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'}: ranking em ${esc(nomeEsc())}</div>
+    $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'}: ranking ${esc(emEsc())}</div>
       <div class="lg-fx" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><i class="sw f-${t}"></i>${FX[t][0]} <b>${cont[t]}</b></button>`).join('')}</div>
-      <div class="lg-t">Estado</div><div class="lg-row">${FORD.map(t => `<span><i class="sw" style="background:var(--uf${t})"></i>${['Mais', 'Média', 'Menos'][t - 1]}</span>`).join('')}</div><p class="lg-n">${necAba === 'cias' ? 'Estados da região comparados entre si. Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
-    if (necAba === 'cias') { $('#g-nec').innerHTML = ''; renderPinos(lista.filter(c => !necQ || (necDe(c.id) && String(necDe(c.id).t) === necQ))); }
+      <div class="lg-t">Estado</div><div class="lg-row">${FORD.map(t => `<span><i class="sw" style="background:var(--uf${t})"></i>${['Mais', 'Média', 'Menos'][t - 1]}</span>`).join('')}</div><p class="lg-n">${necAba === 'cias' ? (necR || necU ? 'Estados da região comparados entre si.' : 'Estados comparados no Brasil inteiro.') + ' Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
+    if (necAba === 'cias') { $('#g-nec').innerHTML = ''; renderPinos(lista.filter(c => noEsc(c.uf)).filter(c => !necQ || (necDe(c.id) && String(necDe(c.id).t) === necQ))); }
     else { $('#g-pin').innerHTML = ''; renderBolhas(); }
     renderNecPainel(); return;
   }
@@ -387,7 +396,7 @@ function renderPinos(lista) {
 }
 function renderBolhas() {
   const g = $('#g-nec'); g.innerHTML = '';
-  RK.filter(x => (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao) && (!necQ || String(x.t) === necQ))
+  RK.filter(x => noEsc(x.uf) && (!necQ || String(x.t) === necQ))
     .slice().sort((a, b) => b.pop - a.pop).forEach(x => {
       const [px, py] = proj(x.lat, x.lon), r = 1.500 + Math.sqrt(x.pop / 1e6) * 2.600;
       const b = el('g', { class: `nb f-${x.t}`, tabindex: '0', role: 'button', 'aria-label': `${x.m}, ${x.uf}. Necessidade ${nf(x.nota)} de 10, ${FX[x.t][0]}. Perdas ${num1(x.ipd)}%. Abrir operador.` });
@@ -412,18 +421,18 @@ function renderNecPainel() {
   const lista = necAba === 'cias' ? fc.filter(o => (!necQ || String(o.t) === necQ) && passa(companhia(o.id))) : mun.filter(x => !necQ || String(x.t) === necQ);
   const item = necAba === 'cias' ? o => linhaCia(o, true)
     : x => `<li><button type="button" class="nc f-${x.t}" data-act="nec-mun" data-r="${x.r}"><span class="pos">${x.pos}</span><span class="selo mun" aria-hidden="true">${x.uf}</span><span class="nc-t"><strong>${esc(x.m)}</strong><small>${esc(x.op)} · perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia · ${mm(x.inv)} (2020–24)</small></span><b class="nn f-${x.t}">${nf(x.nota)}</b></button></li>`;
-  const reg = F.uf ? REG_DE[F.uf] : F.regiao;
-  box.innerHTML = `<div class="np-h"><h2>Ranking em ${esc(nomeEsc())}</h2><p class="hint">${necAba === 'cias' ? 'Companhias comparadas' : 'Municípios comparados'} só dentro ${F.uf ? 'do estado' : 'da região'}. Mais perdas e mais investimento = mais escuro.</p></div>
+  const reg = necU ? REG_DE[necU] : necR;
+  box.innerHTML = `<div class="np-h"><h2>Ranking ${esc(emEsc())}</h2><p class="hint">${necAba === 'cias' ? 'Companhias comparadas' : 'Municípios comparados'} ${necU ? 'só dentro do estado' : necR ? 'só dentro da região' : 'no Brasil inteiro'}. Mais perdas e mais investimento = mais escuro.</p></div>
     <div class="esc">
-      <div class="seg sm esc-r" role="group" aria-label="Região">${Object.keys(REGIOES).map(r => `<button type="button" class="${!F.uf && F.regiao === r ? 'on' : ''}" aria-pressed="${!F.uf && F.regiao === r}" data-act="nec-reg" data-v="${r}">${r}</button>`).join('')}</div>
-      <label class="esc-u"><span>Estado</span><select id="nec-uf"><option value="">Toda a região ${esc(reg)}</option>${REGIOES[reg].slice().sort().map(u => `<option value="${u}" ${F.uf === u ? 'selected' : ''}>${esc(UF_NOMES[u])}</option>`).join('')}</select></label>
+      <div class="seg sm esc-r" role="group" aria-label="Região"><button type="button" class="${!necR && !necU ? 'on' : ''}" aria-pressed="${!necR && !necU}" data-act="nec-reg" data-v="">Todos</button>${Object.keys(REGIOES).map(r => `<button type="button" class="${!necU && necR === r ? 'on' : ''}" aria-pressed="${!necU && necR === r}" data-act="nec-reg" data-v="${r}">${r}</button>`).join('')}</div>
+      <label class="esc-u"><span>Estado</span><select id="nec-uf"><option value="">${reg ? 'Toda a região ' + esc(reg) : 'Todos os estados'}</option>${(reg ? REGIOES[reg] : Object.keys(UF_NOMES)).slice().sort((a, b) => UF_NOMES[a].localeCompare(UF_NOMES[b], 'pt-BR')).map(u => `<option value="${u}" ${necU === u ? 'selected' : ''}>${esc(UF_NOMES[u])}</option>`).join('')}</select></label>
     </div>
     <div class="seg sm" role="group" aria-label="Ver no mapa">${[['cias', 'Companhias'], ['mun', 'Municípios']].map(([v, t]) => `<button type="button" class="${necAba === v ? 'on' : ''}" aria-pressed="${necAba === v}" data-act="nec-aba" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="fx3" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="fx f-${t} ${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><span>${FX[t][0]}</span><b>${base.filter(o => o.t === t).length}</b></button>`).join('')}</div>
     ${necQ ? `<p class="np-play"><strong>Como abordar:</strong> ${FX[necQ][1]}</p>` : ''}
-    <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || `<li class="empty">${necAba === 'mun' ? `Nenhum município ${F.uf ? 'deste estado' : 'desta região'} está entre os 100 do ranking.` : 'Nada com esses filtros.'}</li>`}</ol>
+    <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || `<li class="empty">${necAba === 'mun' ? `Nenhum município ${necU ? 'deste estado' : 'desta região'} está entre os 100 do ranking.` : 'Nada com esses filtros.'}</li>`}</ol>
     ${lista.length > 12 ? `<button class="btn sm" type="button" data-act="nec-tudo">${necTudo ? 'Mostrar só as 12 primeiras' : `Mostrar todas (${lista.length})`}</button>` : ''}
-    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo ${F.uf ? 'do estado' : 'da região'}. Companhias sem cidade no ranking recebem a média das cidades do seu estado (marcadas como estimadas).</p>`;
+    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo ${necU ? 'do estado' : necR ? 'da região' : 'do Brasil'}. Companhias sem cidade no ranking recebem a média das cidades do seu estado (marcadas como estimadas).</p>`;
 }
 function escala() {
   const z = Math.pow(Math.max(.1, k()), .78);
@@ -481,13 +490,13 @@ function eventosMapa() {
     const r = wrap.getBoundingClientRect();
     if (nb) {
       const x = RK.find(y => y.r === +nb.dataset.r);
-      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-fx"><i class="sw f-${x.t}"></i>Necessidade ${nf(x.nota)} · nº ${x.pos} em ${esc(nomeEsc())}</span>`;
+      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-fx"><i class="sw f-${x.t}"></i>Necessidade ${nf(x.nota)} · nº ${x.pos} ${esc(emEsc())}</span>`;
     } else if (pin) {
       const c = companhia(pin.dataset.id), l = leadDe(c.id);
-      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos} em ${esc(nomeEsc())}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
+      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos} ${esc(emEsc())}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
     } else if (uf) {
       const u = uf.dataset.uf, o = calor(filtradas())[u], m = UFM[u];
-      if (corMapa === 'nec' && m && NECUFS.has(u)) tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span class="tip-fx"><i class="sw" style="background:var(--uf${m.t})"></i>Necessidade média ${nf(m.nota)} · nº ${m.pos} de ${NECUFS.size} na região ${esc(REG_DE[u])}</span><span>Perdas médias ${num1(m.ipd)}% em ${m.n} ${m.n > 1 ? 'cidades' : 'cidade'} do ranking</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar o estado'}</span>`;
+      if (corMapa === 'nec' && m && NECUFS.has(u)) tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span class="tip-fx"><i class="sw" style="background:var(--uf${m.t})"></i>Necessidade média ${nf(m.nota)} · nº ${m.pos} de ${NECUFS.size} ${necR || necU ? 'na região ' + esc(REG_DE[u]) : 'no Brasil'}</span><span>Perdas médias ${num1(m.ipd)}% em ${m.n} ${m.n > 1 ? 'cidades' : 'cidade'} do ranking</span><span>Clique para ${necU === u ? 'voltar à região' : 'ver só este estado'}</span>`;
       else tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span>${o ? TEMPS.filter(([t]) => o[t]).map(([t, n]) => `${o[t]} ${n.toLowerCase()}`).join(' · ') : 'Sem leads ativos'}</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar'}</span>`;
     } else { tip.hidden = true; return; }
     tip.style.left = Math.min(Math.max(ev.clientX - r.left, 120), r.width - 120) + 'px';
@@ -505,6 +514,7 @@ function eventosMapa() {
     const nb = ev.target.closest('g.nb');
     if (nb) { abreOperador(RK.find(y => y.r === +nb.dataset.r)); return; }
     const uf = ev.target.closest('path.uf');
+    if (uf && corMapa === 'nec') { tip.hidden = true; const u = uf.dataset.uf; if (necU === u) mudaEsc(necR, ''); else mudaEsc(necR ? REG_DE[u] : '', u); return; }
     if (uf) { tip.hidden = true; aplicaFiltro('uf', F.uf === uf.dataset.uf ? '' : uf.dataset.uf); }
   });
   svg.addEventListener('keydown', ev => {
@@ -1231,7 +1241,7 @@ function renderFaixa() {
   f.hidden = !on;
   if (on) f.innerHTML = '<span><strong>Dados de teste</strong> carregados</span><button class="link" type="button" data-act="rem-exemplos">Apagar</button>';
 }
-function renderTudo() { if (garanteEscopo()) focaArea(); renderFaixa(); renderFiltros(); renderView(); }
+function renderTudo() { renderFaixa(); renderFiltros(); renderView(); }
 function rota() {
   const h = location.hash.replace('#', '');
   view = ['mapa', 'leads', 'estrategia'].includes(h) ? h : 'mapa';
@@ -1258,13 +1268,13 @@ document.addEventListener('click', ev => {
     case 'painel': painel = !painel; renderFiltros(); break;
     case 'limpa-f': if (d.k === 'q') $('#busca').value = ''; aplicaFiltro(d.k, F0[d.k]); break;
     case 'limpa-tudo': F = { ...F0 }; $('#busca').value = ''; focaArea(); renderTudo(); break;
-    case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); renderTudo(); break;
+    case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); if (d.v === 'nec') focaEsc(); else focaArea(); renderTudo(); break;
     case 'nec-aba': necAba = d.v; renderMapa(); break;
     case 'nec-tudo': necTudo = !necTudo; renderNecPainel(); break;
     case 'nec-q': necQ = d.v; renderMapa(); break;
     case 'nec-cia': focaCia(d.id); abreFicha(d.id); break;
     case 'nec-mun': { const x = RK.find(y => y.r === +d.r); const [px, py] = proj(x.lat, x.lon), w = VB0[2] / 3.200, hh = w * VB0[3] / VB0[2]; vaiPara([px - w / 2, py - hh / 2, w, hh]); abreOperador(x); break; }
-    case 'nec-reg': lembra('gf-nec-reg', d.v); F.uf = ''; necTudo = false; aplicaFiltro('regiao', d.v); break;
+    case 'nec-reg': mudaEsc(d.v, ''); break;
     case 'nova': formCompanhia(); break;
     case 'editar': formCompanhia(d.id); break;
     case 'autor': formAutor(); break;
@@ -1300,7 +1310,7 @@ document.addEventListener('keydown', ev => {
 });
 $('#busca').addEventListener('input', ev => { F.q = ev.target.value; renderTudo(); });
 document.addEventListener('change', ev => {
-  if (ev.target.id === 'nec-uf') { const u = ev.target.value; necTudo = false; if (u) aplicaFiltro('uf', u); else { const r = F.uf ? REG_DE[F.uf] : F.regiao; F.uf = ''; aplicaFiltro('regiao', r); } return; }
+  if (ev.target.id === 'nec-uf') { const u = ev.target.value; mudaEsc(u ? (necR && REG_DE[u] === necR ? necR : necR ? REG_DE[u] : '') : necR, u); return; }
   if (ev.target.id === 'est-esc') { estEsc = ev.target.value; lembra('gf-est-esc', estEsc); renderEstrategia(); return; }
   const t = ev.target;
   if (t.dataset.f) aplicaFiltro(t.dataset.f, t.type === 'checkbox' ? t.checked : t.value);
