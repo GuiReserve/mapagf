@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa GF Saneamento</title>
+<meta name="description" content="Mapa das companhias de saneamento do Brasil com leads, rastro de acompanhamento, atas e organograma.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Pular para o conteúdo</a>
+
+<header class="top">
+  <a class="brand" href="#mapa" aria-label="Mapa GF Saneamento, início">
+    <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M16 3c5 6.200 9 10.600 9 15.600A9 9 0 0 1 7 18.600C7 13.600 11 9.200 16 3z" fill="var(--accent)"/></svg>
+    <span class="brand-txt"><strong>Mapa GF</strong><small>Saneamento</small></span>
+  </a>
+  <nav class="tabs" aria-label="Seções">
+    <a href="#mapa" data-view="mapa"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.500-5.800-6.500-11a6.500 6.500 0 0 1 13 0c0 5.200-6.500 11-6.500 11z"/><circle cx="12" cy="10" r="2.300"/></svg><span>Mapa</span></a>
+    <a href="#leads" data-view="leads"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg><span>Leads</span><span class="nb" id="nb-leads"></span></a>
+    <a href="#estrategia" data-view="estrategia"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.500"/><circle cx="12" cy="12" r="4.500"/><circle cx="12" cy="12" r="1"/></svg><span>Estratégia</span></a>
+
+  </nav>
+  
+</header>
+
+<section class="fbar" id="fbar" aria-label="Filtros">
+  <div class="fbox">
+    <div class="fbar-row">
+      <label class="search"><span class="sr">Buscar companhia, cidade ou grupo</span>
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="8" cy="8" r="5.500" fill="none" stroke="currentColor" stroke-width="1.800"/><path d="M12.200 12.200l3.800 3.800" stroke="currentColor" stroke-width="1.800" stroke-linecap="round"/></svg>
+        <input type="search" id="busca" placeholder="Buscar companhia, cidade ou grupo" autocomplete="off">
+      </label>
+      <div class="f-dyn" id="f-dyn"></div>
+    </div>
+    <div class="f-painel" id="f-painel" hidden></div>
+  </div>
+  <div class="f-ativos" id="f-ativos"></div>
+</section>
+
+<div class="faixa" id="faixa-teste" role="status" hidden></div>
+
+<main id="main" tabindex="-1">
+  <section class="view" id="view-mapa" aria-label="Mapa das companhias" hidden>
+    <div class="map-wrap" id="map-wrap">
+      <svg id="map" role="group" aria-label="Mapa do Brasil com um pino por companhia"></svg>
+      <div class="mtool tl"><div class="seg sm glass" id="cor-toggle" role="group" aria-label="Cor do mapa"></div></div>
+      <div class="mtool tr" role="group" aria-label="Zoom do mapa">
+        <button class="mbtn" type="button" data-act="zoom-in" aria-label="Aproximar">+</button>
+        <button class="mbtn" type="button" data-act="zoom-out" aria-label="Afastar">−</button>
+        <button class="mbtn" type="button" data-act="zoom-reset" aria-label="Ver o Brasil inteiro" title="Ver o Brasil inteiro"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linecap="round"><path d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4"/></svg></button>
+      </div>
+      <div class="busca-res" id="busca-res" hidden></div>
+      <div class="mover" id="mover" hidden></div>
+      <details class="legenda" id="legenda-box" open><summary>Legenda</summary><div id="legenda"></div></details>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+  </section>
+  <section class="view" id="view-leads" aria-label="Leads" hidden></section>
+  <section class="view" id="view-estrategia" aria-label="Estratégia comercial" hidden></section>
+</main>
+
+<footer class="foot">
+  <span>Salvo neste navegador.</span>
+  <span class="foot-acts"><button class="link" type="button" data-act="nova">Adicionar companhia</button><button class="link" type="button" data-act="teste">Carregar dados de teste</button><button class="link" type="button" data-act="backup">Baixar backup (.txt)</button><button class="link" type="button" data-act="importar">Importar backup</button></span>
+  <span>Geometria do mapa: @svg-maps/brazil, CC BY 4.0</span>
+</footer>
+
+<button class="fab" type="button" data-act="rapido" aria-label="Registrar visita"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.400" stroke-linecap="round"/></svg><span>Registrar</span></button>
+
+<dialog id="ficha" class="drawer" aria-labelledby="ficha-titulo"></dialog>
+<dialog id="dlg" aria-labelledby="dlg-title"></dialog>
+
+<script src="map-data.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
