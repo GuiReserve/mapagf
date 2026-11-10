@@ -277,8 +277,9 @@ const NEC = (() => {
   return Object.fromEntries(calcNec(l).map(o => [o.id, o]));
 })();
 const UFM = {};
-RK.forEach(x => { const o = UFM[x.uf] = UFM[x.uf] || { n: 0, pp: 0, pi: 0, ipd: 0 }; o.n++; o.pp += x.pp; o.pi += x.pi; o.ipd += x.ipd; });
-Object.values(UFM).forEach(o => { o.pp /= o.n; o.pi /= o.n; o.ipd /= o.n; });
+RK.forEach(x => { const o = UFM[x.uf] = UFM[x.uf] || { n: 0, pp: 0, pi: 0, ipd: 0, nota: 0 }; o.n++; o.pp += x.pp; o.pi += x.pi; o.ipd += x.ipd; o.nota += x.nota; });
+Object.values(UFM).forEach(o => { o.pp /= o.n; o.pi /= o.n; o.ipd /= o.n; o.nota /= o.n; });
+terca(Object.values(UFM).sort((a, b) => b.nota - a.nota));
 const ESTC = {};
 function necDe(id) {
   if (NEC[id]) return NEC[id];
@@ -315,7 +316,7 @@ function renderMapa() {
     const uf = p.dataset.uf, fora = (F.regiao && REG_DE[uf] !== F.regiao) || (F.uf && uf !== F.uf);
     p.setAttribute('class', `uf ${corMapa === 'regiao' ? 'rg-' + REG_CLS[REG_DE[uf]] : 'heat'}${fora ? ' dim' : ''}${F.uf === uf ? ' foco' : ''}`);
     const o = cal[uf], tq = o ? (o.alta ? 'alta' : o.media ? 'media' : 'baixa') : '';
-    p.style.fill = corMapa === 'nec' ? 'var(--land)' : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
+    p.style.fill = corMapa === 'nec' ? (UFM[uf] ? `var(--uf${UFM[uf].t})` : 'var(--land)') : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
   });
   $('#cor-toggle').innerHTML = [['temp', 'Temperatura'], ['regiao', 'Região'], ['nec', 'Necessidade']].map(([v, t]) => `<button type="button" class="${corMapa === v ? 'on' : ''}" aria-pressed="${corMapa === v}" data-act="cor" data-v="${v}">${t}</button>`).join('');
   const pinos = `<div class="lg-row"><span>${pinIco('Pública', '', 11)}Pública</span><span>${pinIco('Privada', '', 11)}Privada</span></div>`;
@@ -327,7 +328,7 @@ function renderMapa() {
     (necAba === 'cias' ? fc : RK).forEach(o => { cont[o.t]++; });
     $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'} por ranking de necessidade</div>
       <div class="lg-fx" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><i class="sw f-${t}"></i>${FX[t][0]} <b>${cont[t]}</b></button>`).join('')}</div>
-      <p class="lg-n">${necAba === 'cias' ? 'Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
+      <div class="lg-t">Estado</div><div class="lg-row">${FORD.map(t => `<span><i class="sw" style="background:var(--uf${t})"></i>${['Mais', 'Média', 'Menos'][t - 1]}</span>`).join('')}</div><p class="lg-n">${necAba === 'cias' ? 'Estado: média das cidades dele no ranking. Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
     if (necAba === 'cias') { $('#g-nec').innerHTML = ''; renderPinos(lista.filter(c => !necQ || (necDe(c.id) && String(necDe(c.id).t) === necQ))); }
     else { $('#g-pin').innerHTML = ''; renderBolhas(); }
     renderNecPainel(); return;
@@ -458,8 +459,9 @@ function eventosMapa() {
       const c = companhia(pin.dataset.id), l = leadDe(c.id);
       tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
     } else if (uf) {
-      const u = uf.dataset.uf, o = calor(filtradas())[u];
-      tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span>${o ? TEMPS.filter(([t]) => o[t]).map(([t, n]) => `${o[t]} ${n.toLowerCase()}`).join(' · ') : 'Sem leads ativos'}</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar'}</span>`;
+      const u = uf.dataset.uf, o = calor(filtradas())[u], m = UFM[u];
+      if (corMapa === 'nec' && m) tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span class="tip-fx"><i class="sw" style="background:var(--uf${m.t})"></i>Necessidade média ${nf(m.nota)} · nº ${m.pos} de ${Object.keys(UFM).length} estados</span><span>Perdas médias ${num1(m.ipd)}% em ${m.n} ${m.n > 1 ? 'cidades' : 'cidade'} do ranking</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar o estado'}</span>`;
+      else tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span>${o ? TEMPS.filter(([t]) => o[t]).map(([t, n]) => `${o[t]} ${n.toLowerCase()}`).join(' · ') : 'Sem leads ativos'}</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar'}</span>`;
     } else { tip.hidden = true; return; }
     tip.style.left = Math.min(Math.max(ev.clientX - r.left, 120), r.width - 120) + 'px';
     tip.style.top = Math.max(ev.clientY - r.top, 70) + 'px';

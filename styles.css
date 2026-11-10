@@ -33,6 +33,7 @@
   --tp-baixa: #2F7FC4;
   --nd: #5B36C9;
   --f1: var(--nd); --f2: color-mix(in srgb, var(--nd) 58%, var(--surface)); --f3: color-mix(in srgb, var(--nd) 27%, var(--surface));
+  --uf1: color-mix(in srgb, var(--nd) 34%, var(--land)); --uf2: color-mix(in srgb, var(--nd) 18%, var(--land)); --uf3: color-mix(in srgb, var(--nd) 6%, var(--land));
   --hm-1: #FBE6BF;
   --hm-2: #F0903F;
   --hm-3: #C42A1E;
