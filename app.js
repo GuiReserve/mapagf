@@ -126,7 +126,7 @@ if (window.claude && typeof window.claude.use === 'function') window.claude.use(
 const F0 = { q: '', ini: '', regiao: '', uf: '', grupo: '', tipo: '', estagio: '', temp: '', prod: '', resp: '', registro: false };
 let F = { ...F0 };
 let sel = '', view = 'mapa', orgSel = '', movendo = '', painel = false, corMapa = 'temp', fichaAba = 'resumo', tlTipo = '', tlMax = 80, primeira = true, notaMudou = false, ultimoCanal = 'Ligação';
-try { orgSel = sessionStorage.getItem('gf-org') || ''; corMapa = localStorage.getItem('gf-cor2') === 'regiao' ? 'regiao' : 'temp'; } catch (e) { /* sem armazenamento */ }
+try { orgSel = sessionStorage.getItem('gf-org') || ''; corMapa = ['regiao', 'nec'].includes(localStorage.getItem('gf-cor2')) ? localStorage.getItem('gf-cor2') : 'temp'; } catch (e) { /* sem armazenamento */ }
 const lembra = (k, v) => { try { (k === 'gf-org' ? sessionStorage : localStorage).setItem(k, v); } catch (e) { /* idem */ } };
 
 function passa(c, ignora = '') {
@@ -212,8 +212,8 @@ const k = () => vb[2] / VB0[2];
 function montaMapa() {
   const vm = $('#view-mapa'), oculto = vm.hidden; vm.hidden = false;
   svg.setAttribute('viewBox', VB0.join(' '));
-  const gUf = el('g', { id: 'g-uf' }), gLb = el('g', { id: 'g-lb', 'aria-hidden': 'true' }), gPin = el('g', { id: 'g-pin' });
-  svg.append(gUf, gLb, gPin);
+  const gUf = el('g', { id: 'g-uf' }), gLb = el('g', { id: 'g-lb', 'aria-hidden': 'true' }), gPin = el('g', { id: 'g-pin' }), gNec = el('g', { id: 'g-nec' });
+  svg.append(gUf, gLb, gNec, gPin);
   UFS.forEach(uf => {
     const p = el('path', { d: BR_MAP.paths[uf], class: 'uf' }); p.dataset.uf = uf;
     gUf.append(p); caixas[uf] = p.getBBox();
@@ -246,6 +246,46 @@ function posicoes(lista) {
   }));
 }
 const PESO = { alta: 3, media: 2, baixa: 1 };
+
+/* ---------- necessidade: perdas + investimento (Ranking do Saneamento 2026) ---------- */
+const RK = window.RANKING || [], CINFO = window.CIA_INFO || {}, FONTE_RK = window.FONTE_RANKING || {};
+const pctl = (v, arr) => { let a = 0, b = 0; arr.forEach(x => { if (x < v) a++; else if (x === v) b++; }); return (a + b / 2) / arr.length; };
+const QUAD = {
+  ir: ['Ir já', 'Perdas altas e muito investimento: tem a dor e tem verba.', 'Proposta direta de VRP NeoFlow para setorização e redução de perdas, com o ganho em m³ por mês.'],
+  precisa: ['Precisa, verba curta', 'Perdas altas, investimento abaixo da mediana.', 'Entrar por um piloto pequeno ou por projeto com financiamento (PAC, BNDES, PPP).'],
+  caixa: ['Tem verba', 'Investe muito, perdas abaixo da mediana.', 'Vender eficiência na expansão de rede e nas novas ligações.'],
+  baixa: ['Baixa necessidade', 'Perdas e investimento abaixo da mediana.', 'Acompanhar à distância; visitar só se estiver na rota.']
+};
+const QORD = ['ir', 'precisa', 'caixa', 'baixa'];
+function calcNec(lista) {
+  const A = lista.map(x => x.ipd), B = lista.map(x => x.ipl), C = lista.map(x => x.inv);
+  lista.forEach(x => { x.pp = (pctl(x.ipd, A) + pctl(x.ipl, B)) / 2; x.pi = pctl(x.inv, C); x.nota = Math.round((x.pp + x.pi) * 50) / 10; x.q = x.pp >= .5 ? (x.pi >= .5 ? 'ir' : 'precisa') : (x.pi >= .5 ? 'caixa' : 'baixa'); });
+  return lista;
+}
+calcNec(RK);
+const NEC = (() => {
+  const m = {};
+  RK.forEach(x => x.cias.forEach(id => {
+    const o = m[id] = m[id] || { id, cid: [], pop: 0, a: 0, b: 0, inv: 0 };
+    o.cid.push(x); o.inv += x.inv;
+    if (!x.atip) { o.pop += x.pop; o.a += x.ipd * x.pop; o.b += x.ipl * x.pop; }
+  }));
+  const l = Object.values(m).filter(o => o.pop); l.forEach(o => { o.ipd = o.a / o.pop; o.ipl = o.b / o.pop; o.cid.sort((p, q) => q.nota - p.nota); });
+  return Object.fromEntries(calcNec(l).map(o => [o.id, o]));
+})();
+const num1 = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const nf = v => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const mm = v => v >= 1000 ? 'R$ ' + num1(v / 1000) + ' bi' : 'R$ ' + Math.round(v).toLocaleString('pt-BR') + ' mi';
+const corNec = n => `color-mix(in srgb, var(--nd) ${Math.round(14 + n * 8.6)}%, var(--surface))`;
+const quadChip = q => `<span class="qd q-${q}">${QUAD[q][0]}</span>`;
+let necAba = 'cias', necQ = '', necTudo = false;
+/* logos enviados pelo usuário (IndexedDB) */
+const logos = new Map();
+const siglas = n => { const w = String(n).replace(/[()]/g, '').split(/\s+/).filter(x => x && !/^(de|do|da|das|dos|e|S\.A\.)$/i.test(x)); return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase(); };
+const selo = (c, cls = '') => logos.has(c.id) ? `<span class="selo img ${cls}"><img src="${logos.get(c.id)}" alt=""></span>` : `<span class="selo ${cls}" aria-hidden="true">${esc(siglas(c.nome))}</span>`;
+async function carregaLogos() {
+  for (const id of Object.keys(S.reg)) if (S.reg[id].logo && !logos.has(id)) { const b = await arqGet('logo-' + id); if (b) logos.set(id, URL.createObjectURL(b)); }
+}
 function calor(lista) {
   const out = {};
   lista.forEach(c => { const t = tempAt(leadDe(c.id)); if (!t) return; const o = out[c.uf] = out[c.uf] || { s: 0, alta: 0, media: 0, baixa: 0 }; o.s += PESO[t]; o[t]++; });
@@ -261,11 +301,19 @@ function renderMapa() {
     const uf = p.dataset.uf, fora = (F.regiao && REG_DE[uf] !== F.regiao) || (F.uf && uf !== F.uf);
     p.setAttribute('class', `uf ${corMapa === 'regiao' ? 'rg-' + REG_CLS[REG_DE[uf]] : 'heat'}${fora ? ' dim' : ''}${F.uf === uf ? ' foco' : ''}`);
     const o = cal[uf], tq = o ? (o.alta ? 'alta' : o.media ? 'media' : 'baixa') : '';
-    p.style.fill = corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
+    p.style.fill = corMapa === 'nec' ? 'var(--land)' : corMapa === 'temp' && tq ? `color-mix(in srgb, var(--tp-${tq}) 62%, var(--surface))` : '';
   });
-  $('#cor-toggle').innerHTML = [['temp', 'Temperatura'], ['regiao', 'Região']].map(([v, t]) => `<button type="button" class="${corMapa === v ? 'on' : ''}" aria-pressed="${corMapa === v}" data-act="cor" data-v="${v}">${t}</button>`).join('');
+  $('#cor-toggle').innerHTML = [['temp', 'Temperatura'], ['regiao', 'Região'], ['nec', 'Necessidade']].map(([v, t]) => `<button type="button" class="${corMapa === v ? 'on' : ''}" aria-pressed="${corMapa === v}" data-act="cor" data-v="${v}">${t}</button>`).join('');
   const pinos = `<div class="lg-row"><span>${pinIco('Pública', '', 11)}Pública</span><span>${pinIco('Privada', '', 11)}Privada</span></div>`;
   const miolo = `<div class="lg-t">Miolo do pino</div><div class="lg-row">${TEMPS.map(([t, n]) => `<span><i class="dot" style="background:var(--tp-${t})"></i>${n}</span>`).join('')}<span><i class="dot w"></i>Sem lead</span></div>`;
+  $('#view-mapa').classList.toggle('nec', corMapa === 'nec');
+  $('#nec-painel').hidden = corMapa !== 'nec';
+  if (corMapa === 'nec') {
+    $('#legenda').innerHTML = `<div class="lg-t">Necessidade do município (nota 0 a 10)</div><div class="lg-row"><span class="grad nd"></span></div><div class="lg-row lg-ends"><span>Menor</span><span>Maior</span></div>
+      <div class="lg-t">Tamanho do círculo</div><div class="lg-row"><span>População</span></div><p class="lg-n">Nota: metade perdas de água, metade investimento. Os 100 maiores municípios, Ranking do Saneamento 2026.</p>`;
+    $('#g-pin').innerHTML = ''; renderBolhas(); renderNecPainel(); return;
+  }
+  $('#g-nec').innerHTML = '';
   $('#legenda').innerHTML = (corMapa === 'regiao'
     ? `<div class="lg-t">Regiões</div><div class="lg-row">${Object.keys(REGIOES).map(r => `<span><i class="sw rg-${REG_CLS[r]}"></i>${r}</span>`).join('')}</div>`
     : `<div class="lg-t">Estado = temperatura mais alta entre os leads</div><div class="lg-row">${TEMPS.map(([t, n]) => `<span><i class="sw" style="background:color-mix(in srgb, var(--tp-${t}) 62%, var(--surface))"></i>${n}</span>`).join('')}<span><i class="sw" style="background:var(--land)"></i>Sem lead</span></div>`)
@@ -293,12 +341,47 @@ function renderPinos(lista) {
   primeira = false;
   escala();
 }
+function renderBolhas() {
+  const g = $('#g-nec'); g.innerHTML = '';
+  RK.filter(x => (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao) && (!necQ || x.q === necQ))
+    .slice().sort((a, b) => b.pop - a.pop).forEach(x => {
+      const [px, py] = proj(x.lat, x.lon), r = 1.500 + Math.sqrt(x.pop / 1e6) * 2.600;
+      const b = el('g', { class: 'nb', tabindex: '0', role: 'button', 'aria-label': `${x.m}, ${x.uf}. Necessidade ${nf(x.nota)} de 10, ${QUAD[x.q][0]}. Perdas ${num1(x.ipd)}%. Abrir operador.` });
+      Object.assign(b.dataset, { r: x.r, x: px, y: py });
+      const c = el('circle', { cx: 0, cy: 0, r: r.toFixed(2) }); c.style.fill = corNec(x.nota);
+      b.append(c); g.append(b);
+    });
+  escala();
+}
+function abreOperador(x) {
+  const id = x.cias.find(i => companhia(i));
+  if (id) abreFicha(id); else toast(`${x.m}: operador (${x.op}) não está no mapa.`);
+}
+function renderNecPainel() {
+  const box = $('#nec-painel');
+  const fq = o => (!necQ || o.q === necQ) && (!F.uf || (o.uf || '') === F.uf || (o.cid && o.cid.some(x => x.uf === F.uf))) && (!F.regiao || REG_DE[o.uf || (o.cid && o.cid[0].uf)] === F.regiao);
+  const cont = {}; QORD.forEach(q => { cont[q] = 0; });
+  const base = necAba === 'cias' ? Object.values(NEC).filter(o => companhia(o.id)) : RK;
+  base.forEach(o => { cont[o.q]++; });
+  const lista = base.filter(fq).sort((a, b) => b.nota - a.nota);
+  const item = necAba === 'cias'
+    ? o => { const c = companhia(o.id), l = leadDe(o.id); return `<li><button type="button" class="nc" data-act="nec-cia" data-id="${esc(o.id)}">${selo(c)}<span class="nc-t"><strong>${esc(c.nome)}</strong><small>Perdas ${num1(o.ipd)}% · ${Math.round(o.ipl)} L/lig/dia · ${mm(o.inv)} investidos (2020–24) · ${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no ranking</small><span class="nc-c">${quadChip(o.q)}${l ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : ''}</span></span><b class="nn" style="--n:${o.nota}">${nf(o.nota)}</b></button></li>`; }
+    : x => `<li><button type="button" class="nc" data-act="nec-mun" data-r="${x.r}"><span class="selo mun" aria-hidden="true">${x.uf}</span><span class="nc-t"><strong>${esc(x.m)}</strong><small>${esc(x.op)} · perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia · ${mm(x.inv)} (2020–24)</small><span class="nc-c">${quadChip(x.q)}</span></span><b class="nn" style="--n:${x.nota}">${nf(x.nota)}</b></button></li>`;
+  box.innerHTML = `<div class="np-h"><h2>Melhores clientes por necessidade</h2><p class="hint">Mais perdas de água e mais investimento = nota maior.</p></div>
+    <div class="seg sm" role="group" aria-label="Listar">${[['cias', 'Companhias'], ['mun', 'Municípios']].map(([v, t]) => `<button type="button" class="${necAba === v ? 'on' : ''}" aria-pressed="${necAba === v}" data-act="nec-aba" data-v="${v}">${t}</button>`).join('')}</div>
+    <div class="qfil" role="group" aria-label="Filtrar por quadrante"><button type="button" class="chip-d ${necQ ? '' : 'on'}" aria-pressed="${!necQ}" data-act="nec-q" data-v="">Todos</button>${QORD.map(q => `<button type="button" class="chip-d ${necQ === q ? 'on' : ''}" aria-pressed="${necQ === q}" data-act="nec-q" data-v="${q}"><i class="qd-dot q-${q}"></i>${QUAD[q][0]} <b>${cont[q]}</b></button>`).join('')}</div>
+    ${necQ ? `<p class="np-play"><strong>Como abordar:</strong> ${QUAD[necQ][2]}</p>` : ''}
+    <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || '<li class="empty">Nada com esses filtros.</li>'}</ol>
+    ${lista.length > 12 ? `<button class="btn sm" type="button" data-act="nec-tudo">${necTudo ? 'Mostrar só as 12 primeiras' : `Mostrar todas (${lista.length})`}</button>` : ''}
+    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Perdas = média das posições em % de perdas na distribuição e litros perdidos por ligação. Investimento = total de 2020 a 2024. Quadrantes pela mediana.</p>`;
+}
 function escala() {
   const z = Math.pow(Math.max(.1, k()), .78);
   svg.querySelectorAll('g.pin').forEach(p => {
     const d = p.dataset;
     p.setAttribute('transform', `translate(${(+d.x + d.ox * z).toFixed(2)} ${(+d.y + d.oy * z).toFixed(2)}) scale(${z.toFixed(3)})`);
   });
+  svg.querySelectorAll('g.nb').forEach(b => b.setAttribute('transform', `translate(${b.dataset.x} ${b.dataset.y}) scale(${z.toFixed(3)})`));
   svg.querySelectorAll('text.lb').forEach(t => t.setAttribute('transform', `translate(${t.dataset.x} ${t.dataset.y}) scale(${Math.max(.3, z).toFixed(3)})`));
   svg.style.touchAction = k() < .98 ? 'none' : 'pan-y';
 }
@@ -344,9 +427,12 @@ function eventosMapa() {
       return;
     }
     if (ev.pointerType === 'touch') return;
-    const pin = ev.target.closest && ev.target.closest('g.pin'), uf = !pin && ev.target.closest && ev.target.closest('path.uf');
+    const pin = ev.target.closest && ev.target.closest('g.pin'), nb = !pin && ev.target.closest && ev.target.closest('g.nb'), uf = !pin && !nb && ev.target.closest && ev.target.closest('path.uf');
     const r = wrap.getBoundingClientRect();
-    if (pin) {
+    if (nb) {
+      const x = RK.find(y => y.r === +nb.dataset.r);
+      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-st">Necessidade ${nf(x.nota)} · ${QUAD[x.q][0]}</span>`;
+    } else if (pin) {
       const c = companhia(pin.dataset.id), l = leadDe(c.id);
       tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
     } else if (uf) {
@@ -365,12 +451,15 @@ function eventosMapa() {
     if (movendo) { reg(movendo).pos = pontoSvg(ev); logar(movendo, 'dados', 'Reposicionou o pino no mapa'); const id = movendo; movendo = ''; salvar(); renderView(); toast('Pino reposicionado.'); abreFicha(id); return; }
     const pin = ev.target.closest('g.pin');
     if (pin) { abreFicha(pin.dataset.id); return; }
+    const nb = ev.target.closest('g.nb');
+    if (nb) { abreOperador(RK.find(y => y.r === +nb.dataset.r)); return; }
     const uf = ev.target.closest('path.uf');
     if (uf) { tip.hidden = true; aplicaFiltro('uf', F.uf === uf.dataset.uf ? '' : uf.dataset.uf); }
   });
   svg.addEventListener('keydown', ev => {
-    const pin = ev.target.closest && ev.target.closest('g.pin');
+    const pin = ev.target.closest && ev.target.closest('g.pin'), nb = ev.target.closest && ev.target.closest('g.nb');
     if (pin && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); abreFicha(pin.dataset.id); }
+    if (nb && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); abreOperador(RK.find(y => y.r === +nb.dataset.r)); }
   });
   svg.addEventListener('dblclick', ev => { if (ev.target.closest('g.pin')) return; const [x, y] = pontoSvg(ev); zoom(.55, x, y); });
 }
@@ -433,6 +522,7 @@ function renderFicha() {
     </header>
     <div class="f-body" id="f-panel">
       <button class="btn primary big full" type="button" data-act="rapido" data-id="${esc(sel)}">${ico('interacao', 18)} Registrar visita</button>
+      ${raioX(c)}
       <section class="blk" aria-labelledby="h-temp"><h3 id="h-temp">Temperatura</h3>${radios('lt', TEMPS, l && l.temp, 'temp', 'tp')}</section>
       <section class="blk" aria-labelledby="h-prod"><h3 id="h-prod">Produto oferecido</h3>
         <div class="rchips">${PRODUTOS.map(([p, t]) => `<label class="rchip tog"><input type="checkbox" id="pr-${p}" data-prod="${p}" ${r.prod[p] ? 'checked' : ''}><span>${esc(t.replace('Soluções ', ''))}</span></label>`).join('')}</div></section>
@@ -445,6 +535,33 @@ function renderFicha() {
     </div>`;
   $('.f-body', ficha).scrollTop = rolagem;
   if (foco && document.getElementById(foco)) document.getElementById(foco).focus({ preventScroll: true });
+}
+function raioX(c) {
+  const i = CINFO[c.id] || {}, o = NEC[c.id], semDado = '<span class="sd">Sem dado público levantado</span>';
+  return `<section class="blk rx" aria-labelledby="h-rx">
+    <div class="rx-top">${selo(c, 'lg')}<div class="rx-tt"><h3 id="h-rx">Raio-X</h3><label class="link sm file">${logos.has(c.id) ? 'Trocar logo' : 'Adicionar logo'}<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label></div>
+      ${o ? `<div class="rx-n"><b class="nn lg" style="--n:${o.nota}">${nf(o.nota)}</b><small>necessidade<br>de 0 a 10</small></div>` : ''}</div>
+    <dl class="rx-dl">
+      <div><dt>Municípios atendidos</dt><dd>${i.mun ? esc(i.mun) : semDado}</dd></div>
+      <div><dt>Investimento previsto</dt><dd>${i.inv ? esc(i.inv) : semDado}</dd></div>
+      ${o ? `<div><dt>Perdas de água</dt><dd>${num1(o.ipd)}% · ${Math.round(o.ipl)} L por ligação/dia</dd></div><div><dt>Investiu de 2020 a 2024</dt><dd>${mm(o.inv)}</dd></div>` : ''}
+    </dl>
+    ${o ? `<p class="rx-q">${quadChip(o.q)}<span>${QUAD[o.q][2]}</span></p>
+    <details class="rx-cid"><summary>${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no Ranking do Saneamento 2026</summary>
+      <div class="tbl-w"><table><thead><tr><th scope="col">Município</th><th scope="col">Perdas</th><th scope="col">L/lig/dia</th><th scope="col">Invest. 2020–24</th><th scope="col">Nota</th></tr></thead>
+      <tbody>${o.cid.map(x => `<tr><th scope="row">${esc(x.m)}, ${x.uf}${x.obs ? `<small>${esc(x.obs)}</small>` : ''}</th><td>${num1(x.ipd)}%</td><td>${Math.round(x.ipl)}</td><td>${mm(x.inv)}</td><td><b class="nn" style="--n:${x.nota}">${nf(x.nota)}</b></td></tr>`).join('')}</tbody></table></div>
+    </details>` : '<p class="hint">Nenhuma cidade desta companhia está entre as 100 maiores do Ranking do Saneamento 2026, então não há nota de necessidade.</p>'}
+    ${i.url ? `<p class="hint">Municípios e investimento: <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.fonte)}</a></p>` : ''}
+  </section>`;
+}
+async function trocaLogo(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { toast('Escolha uma imagem (PNG, JPG, WEBP ou SVG).'); return; }
+  if (f.size > 2 * 1048576) { toast('Imagem muito grande. Use uma de até 2 MB.'); return; }
+  const id = sel; await arqPut('logo-' + id, f);
+  if (logos.has(id)) URL.revokeObjectURL(logos.get(id));
+  logos.set(id, URL.createObjectURL(f)); reg(id).logo = true; salvar();
+  toast('Logo salvo.'); renderFicha(); renderTudo();
 }
 function timeline(lista, comCia) {
   if (!lista.length) return `<p class="empty">${comCia ? 'Nada registrado com esses filtros. Abra a ficha de uma companhia e registre uma interação.' : 'Nada registrado ainda. Registre a primeira interação acima.'}</p>`;
@@ -482,6 +599,7 @@ ficha.addEventListener('change', ev => {
   else if (t.dataset.ataCampo) { const a = reg(sel).atas.find(x => x.id === t.dataset.ata); if (a) { a[t.dataset.ataCampo] = t.value; salvar(); } }
   else if (t.name === 'int-canal') ultimoCanal = t.value;
   else if (t.id === 'ata-file') anexa(t);
+  else if (t.id === 'logo-file') trocaLogo(t);
 });
 ficha.addEventListener('input', ev => {
   if (ev.target.id !== 'notas') return;
@@ -795,7 +913,7 @@ document.addEventListener('pointerover', ev => {
 const PROB = { prospeccao: 10, contato: 20, reuniao: 35, proposta: 50, negociacao: 70 };
 const PB_CAMPOS = [['perfil', 'Para quem vender', 'Ex.: companhias com perdas acima da média do estado e setores com pressão alta à noite.'], ['problema', 'Problema que resolve', 'Ex.: qual dor do cliente o produto ataca e como ele percebe isso no dia a dia.'],
   ['argumentos', 'Principais argumentos', 'Um argumento por linha, do mais forte para o mais fraco.'], ['perguntas', 'Perguntas para qualificar', 'Ex.: Quanto vocês perdem hoje no setor? Quem aprova o orçamento?'], ['casos', 'Casos e provas', 'Clientes, números e resultados que você pode citar.']];
-let estAba = 'metas', pbProd = 'neoflow';
+let estAba = 'onde', pbProd = 'neoflow';
 const trimestre = s => { const [y, m] = s.split('-').map(Number); return `${y}-T${Math.floor((m - 1) / 3) + 1}`; };
 let periodo = trimestre(hoje());
 const triRot = p => { const [y, q] = p.split('-T'); return `${q}º tri ${y}`; };
@@ -809,13 +927,28 @@ function estr() {
   return E;
 }
 function renderEstrategia() {
-  const abas = [['metas', 'Metas'], ['matriz', 'Prioridade']];
-  if (!['metas', 'matriz'].includes(estAba)) estAba = 'metas';
-  const corpo = { metas: estMetas, matriz: estMatriz }[estAba]();
+  const abas = [['onde', 'Onde ir'], ['metas', 'Metas'], ['matriz', 'Prioridade']];
+  if (!['onde', 'metas', 'matriz'].includes(estAba)) estAba = 'onde';
+  const corpo = { onde: estOnde, metas: estMetas, matriz: estMatriz }[estAba]();
   $('#view-estrategia').innerHTML = `
     <div class="vh"><div><h1>Estratégia</h1></div></div>
     <div class="seg est-tabs" role="group" aria-label="Partes da estratégia">${abas.map(([v, t]) => `<button type="button" class="${estAba === v ? 'on' : ''}" aria-pressed="${estAba === v}" data-act="est-aba" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="est-body">${corpo}</div>`;
+}
+function estOnde() {
+  const cias = Object.values(NEC).filter(o => companhia(o.id)).sort((a, b) => b.nota - a.nota);
+  const por = {}; QORD.forEach(q => { por[q] = cias.filter(o => o.q === q); });
+  const linha = (o, i) => { const c = companhia(o.id), l = leadDe(o.id); return `<li><button type="button" class="nc" data-act="nec-cia" data-id="${esc(o.id)}"><span class="pos">${i + 1}</span>${selo(c)}<span class="nc-t"><strong>${esc(c.nome)}</strong><small>${esc(c.uf)} · perdas ${num1(o.ipd)}% · ${mm(o.inv)} investidos (2020–24)${CINFO[o.id] && CINFO[o.id].inv ? ' · prevê ' + esc(CINFO[o.id].inv) : ''}</small></span>${l ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : '<span class="sem-l">sem lead</span>'}<b class="nn" style="--n:${o.nota}">${nf(o.nota)}</b></button></li>`; };
+  const semLead = por.ir.filter(o => !leadDe(o.id));
+  return `
+    <section class="card"><div class="blk-h"><div><h2>Onde ir primeiro</h2><p class="hint">Companhias com mais perdas de água e mais investimento ganham nota maior. Base: as 100 maiores cidades do Ranking do Saneamento 2026.</p></div><button class="btn sm" type="button" data-act="ver-nec" data-v="">Ver no mapa</button></div>
+      <div class="quad4">${QORD.map(q => `<button type="button" class="q4 q-${q}" data-act="ver-nec" data-v="${q}"><span class="q4-n">${por[q].length}</span><span class="q4-t">${QUAD[q][0]}</span><span class="q4-d">${QUAD[q][1]}</span><span class="q4-p">${QUAD[q][2]}</span></button>`).join('')}</div>
+      ${semLead.length ? `<p class="alerta">${semLead.length} ${semLead.length > 1 ? 'companhias "Ir já" ainda não têm lead' : 'companhia "Ir já" ainda não tem lead'}: ${semLead.slice(0, 6).map(o => esc(companhia(o.id).nome)).join(', ')}${semLead.length > 6 ? '…' : ''}.</p>` : ''}
+    </section>
+    <section class="card"><div class="blk-h"><h2>Ranking de necessidade</h2><span class="hint">${cias.length} companhias com dados</span></div>
+      <ol class="nlist rk">${cias.map(linha).join('')}</ol>
+      <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = 50% perdas (% na distribuição e litros por ligação) + 50% investimento de 2020 a 2024, em posição relativa. Quadrantes pela mediana.</p>
+    </section>`;
 }
 function estMetas() {
   const E = estr(), m = E.metas[periodo] || { total: 0, resp: {} }, [ini, fim] = triLim(periodo);
@@ -960,6 +1093,9 @@ const b64de = blob => new Promise((ok, no) => { const r = new FileReader(); r.on
 const b64para = (b64, tipo) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: tipo || 'application/octet-stream' }); };
 async function montaBackup() {
   const arquivos = {};
+  for (const c of Object.keys(S.reg)) if (S.reg[c].logo) {
+    try { const b = await arqGet('logo-' + c); if (b) arquivos['logo-' + c] = { tipo: b.type || '', b64: await b64de(b) }; } catch (e) { /* sem logo */ }
+  }
   for (const c of Object.keys(S.reg)) for (const a of (S.reg[c].atas || [])) {
     try { const b = await arqGet(a.id); if (b) arquivos[a.id] = { tipo: b.type || a.tipo || '', b64: await b64de(b) }; } catch (e) { /* ata ausente neste navegador */ }
   }
@@ -1000,6 +1136,7 @@ function formImportar() {
       ok = await restauraBackup(texto);
     } catch (e) { ok = false; }
     if (!ok) { const er = $('#imp-err'); er.textContent = 'Não é um backup deste app.'; er.hidden = false; return; }
+    logos.forEach(u => URL.revokeObjectURL(u)); logos.clear(); await carregaLogos();
     salvar(); fechaDialogo(); renderAutor(); renderTudo(); toast('Backup importado.');
   });
 }
@@ -1053,6 +1190,12 @@ document.addEventListener('click', ev => {
     case 'limpa-f': if (d.k === 'q') $('#busca').value = ''; aplicaFiltro(d.k, F0[d.k]); break;
     case 'limpa-tudo': F = { ...F0 }; $('#busca').value = ''; focaArea(); renderTudo(); break;
     case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); renderMapa(); break;
+    case 'nec-aba': necAba = d.v; renderNecPainel(); break;
+    case 'nec-tudo': necTudo = !necTudo; renderNecPainel(); break;
+    case 'nec-q': necQ = d.v; renderMapa(); break;
+    case 'nec-cia': focaCia(d.id); abreFicha(d.id); break;
+    case 'nec-mun': { const x = RK.find(y => y.r === +d.r); const [px, py] = proj(x.lat, x.lon), w = VB0[2] / 3.200, hh = w * VB0[3] / VB0[2]; vaiPara([px - w / 2, py - hh / 2, w, hh]); abreOperador(x); break; }
+    case 'ver-nec': necQ = d.v || ''; necAba = 'cias'; corMapa = 'nec'; lembra('gf-cor2', 'nec'); location.hash = '#mapa'; renderTudo(); break;
     case 'nova': formCompanhia(); break;
     case 'editar': formCompanhia(d.id); break;
     case 'autor': formAutor(); break;
@@ -1127,4 +1270,5 @@ renderAutor();
 if (window.matchMedia('(max-width: 640px)').matches) $('#legenda-box').open = false;
 montaMapa();
 rota();
+carregaLogos().then(() => { if (logos.size) renderTudo(); });
 })();
