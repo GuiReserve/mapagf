@@ -250,19 +250,22 @@ const PESO = { alta: 3, media: 2, baixa: 1 };
 /* ---------- necessidade: perdas + investimento (Ranking do Saneamento 2026) ---------- */
 const RK = window.RANKING || [], CINFO = window.CIA_INFO || {}, FONTE_RK = window.FONTE_RANKING || {};
 const pctl = (v, arr) => { let a = 0, b = 0; arr.forEach(x => { if (x < v) a++; else if (x === v) b++; }); return (a + b / 2) / arr.length; };
-const QUAD = {
-  ir: ['Ir já', 'Perdas altas e muito investimento: tem a dor e tem verba.', 'Proposta direta de VRP NeoFlow para setorização e redução de perdas, com o ganho em m³ por mês.'],
-  precisa: ['Precisa, verba curta', 'Perdas altas, investimento abaixo da mediana.', 'Entrar por um piloto pequeno ou por projeto com financiamento (PAC, BNDES, PPP).'],
-  caixa: ['Tem verba', 'Investe muito, perdas abaixo da mediana.', 'Vender eficiência na expansão de rede e nas novas ligações.'],
-  baixa: ['Baixa necessidade', 'Perdas e investimento abaixo da mediana.', 'Acompanhar à distância; visitar só se estiver na rota.']
+const FX = {
+  1: ['Mais necessidade', 'Visitar primeiro: proposta de VRP NeoFlow para setorização e redução de perdas, com o ganho em m³ por mês.'],
+  2: ['Necessidade média', 'Qualificar antes de propor: confirmar orçamento e os setores com mais perdas.'],
+  3: ['Menos necessidade', 'Acompanhar e visitar quando estiver na rota.']
 };
-const QORD = ['ir', 'precisa', 'caixa', 'baixa'];
+const FORD = [1, 2, 3];
+const fxChip = t => `<span class="qd f-${t}">${FX[t][0]}</span>`;
+const diag = o => `Perdas ${o.pp >= .5 ? 'acima' : 'abaixo'} da mediana · investimento ${o.pi >= .5 ? 'acima' : 'abaixo'} da mediana`;
+const terca = l => { const n = l.length; l.forEach((o, i) => { o.t = i < n / 3 ? 1 : i < 2 * n / 3 ? 2 : 3; o.pos = i + 1; }); return l; };
 function calcNec(lista) {
   const A = lista.map(x => x.ipd), B = lista.map(x => x.ipl), C = lista.map(x => x.inv);
   lista.forEach(x => { x.pp = (pctl(x.ipd, A) + pctl(x.ipl, B)) / 2; x.pi = pctl(x.inv, C); x.nota = Math.round((x.pp + x.pi) * 50) / 10; x.q = x.pp >= .5 ? (x.pi >= .5 ? 'ir' : 'precisa') : (x.pi >= .5 ? 'caixa' : 'baixa'); });
   return lista;
 }
 calcNec(RK);
+terca(RK.slice().sort((a, b) => b.nota - a.nota));
 const NEC = (() => {
   const m = {};
   RK.forEach(x => x.cias.forEach(id => {
@@ -273,11 +276,22 @@ const NEC = (() => {
   const l = Object.values(m).filter(o => o.pop); l.forEach(o => { o.ipd = o.a / o.pop; o.ipl = o.b / o.pop; o.cid.sort((p, q) => q.nota - p.nota); });
   return Object.fromEntries(calcNec(l).map(o => [o.id, o]));
 })();
+const UFM = {};
+RK.forEach(x => { const o = UFM[x.uf] = UFM[x.uf] || { n: 0, pp: 0, pi: 0, ipd: 0 }; o.n++; o.pp += x.pp; o.pi += x.pi; o.ipd += x.ipd; });
+Object.values(UFM).forEach(o => { o.pp /= o.n; o.pi /= o.n; o.ipd /= o.n; });
+const ESTC = {};
+function necDe(id) {
+  if (NEC[id]) return NEC[id];
+  const c = companhia(id), u = c && UFM[c.uf]; if (!u) return null;
+  /* poucas cidades no estado = estimativa fraca: puxa para o meio da escala */
+  const pp = (u.pp * u.n + .5 * 3) / (u.n + 3), pi = (u.pi * u.n + .5 * 3) / (u.n + 3);
+  return ESTC[id] = ESTC[id] || { id, est: true, uf: c.uf, pp, pi, nota: Math.round((pp + pi) * 50) / 10, ipdUF: u.ipd, nUF: u.n, cid: [] };
+}
+function faixasCias() { return terca(companhias().map(c => necDe(c.id)).filter(Boolean).sort((a, b) => b.nota - a.nota || (a.est ? 1 : 0) - (b.est ? 1 : 0))); }
 const num1 = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const nf = v => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const mm = v => v >= 1000 ? 'R$ ' + num1(v / 1000) + ' bi' : 'R$ ' + Math.round(v).toLocaleString('pt-BR') + ' mi';
 const corNec = n => `color-mix(in srgb, var(--nd) ${Math.round(14 + n * 8.6)}%, var(--surface))`;
-const quadChip = q => `<span class="qd q-${q}">${QUAD[q][0]}</span>`;
 let necAba = 'cias', necQ = '', necTudo = false;
 /* logos enviados pelo usuário (IndexedDB) */
 const logos = new Map();
@@ -309,9 +323,14 @@ function renderMapa() {
   $('#view-mapa').classList.toggle('nec', corMapa === 'nec');
   $('#nec-painel').hidden = corMapa !== 'nec';
   if (corMapa === 'nec') {
-    $('#legenda').innerHTML = `<div class="lg-t">Necessidade do município (nota 0 a 10)</div><div class="lg-row"><span class="grad nd"></span></div><div class="lg-row lg-ends"><span>Menor</span><span>Maior</span></div>
-      <div class="lg-t">Tamanho do círculo</div><div class="lg-row"><span>População</span></div><p class="lg-n">Nota: metade perdas de água, metade investimento. Os 100 maiores municípios, Ranking do Saneamento 2026.</p>`;
-    $('#g-pin').innerHTML = ''; renderBolhas(); renderNecPainel(); return;
+    const fc = faixasCias(), cont = { 1: 0, 2: 0, 3: 0 };
+    (necAba === 'cias' ? fc : RK).forEach(o => { cont[o.t]++; });
+    $('#legenda').innerHTML = `<div class="lg-t">${necAba === 'cias' ? 'Companhias' : 'Municípios'} por ranking de necessidade</div>
+      <div class="lg-fx" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><i class="sw f-${t}"></i>${FX[t][0]} <b>${cont[t]}</b></button>`).join('')}</div>
+      <p class="lg-n">${necAba === 'cias' ? 'Escuro = topo do ranking. Clique numa faixa para filtrar. O miolo do pino segue a temperatura do lead.' : 'Tamanho do círculo = população. Clique numa faixa para filtrar.'}</p>`;
+    if (necAba === 'cias') { $('#g-nec').innerHTML = ''; renderPinos(lista.filter(c => !necQ || (necDe(c.id) && String(necDe(c.id).t) === necQ))); }
+    else { $('#g-pin').innerHTML = ''; renderBolhas(); }
+    renderNecPainel(); return;
   }
   $('#g-nec').innerHTML = '';
   $('#legenda').innerHTML = (corMapa === 'regiao'
@@ -326,7 +345,8 @@ function renderPinos(lista) {
   posicoes(lista);
   lista.slice().sort((a, b) => (a.id === sel) - (b.id === sel) || (a._p[1] + a._o[1]) - (b._p[1] + b._o[1])).forEach((c, i) => {
     const l = leadDe(c.id);
-    const pin = el('g', { class: `pin ${c.ini === 'Privada' ? 'priv' : 'pub'}${c.id === sel ? ' sel' : ''}${vencido(l) ? ' late' : ''}`, tabindex: '0', role: 'button',
+    const nx = corMapa === 'nec' && necDe(c.id);
+    const pin = el('g', { class: `pin ${c.ini === 'Privada' ? 'priv' : 'pub'}${nx ? ' nt nt-' + nx.t : ''}${c.id === sel ? ' sel' : ''}${vencido(l) ? ' late' : ''}`, tabindex: '0', role: 'button',
       'aria-label': `${c.nome}, ${c.ini.toLowerCase()}, ${c.cidade}, ${c.uf}${l ? ', lead em ' + EST[l.estagio] : ''}. Abrir ficha.` });
     Object.assign(pin.dataset, { id: c.id, x: c._p[0], y: c._p[1], ox: c._o[0], oy: c._o[1] });
     const body = el('g', { class: 'body' });
@@ -343,13 +363,12 @@ function renderPinos(lista) {
 }
 function renderBolhas() {
   const g = $('#g-nec'); g.innerHTML = '';
-  RK.filter(x => (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao) && (!necQ || x.q === necQ))
+  RK.filter(x => (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao) && (!necQ || String(x.t) === necQ))
     .slice().sort((a, b) => b.pop - a.pop).forEach(x => {
       const [px, py] = proj(x.lat, x.lon), r = 1.500 + Math.sqrt(x.pop / 1e6) * 2.600;
-      const b = el('g', { class: 'nb', tabindex: '0', role: 'button', 'aria-label': `${x.m}, ${x.uf}. Necessidade ${nf(x.nota)} de 10, ${QUAD[x.q][0]}. Perdas ${num1(x.ipd)}%. Abrir operador.` });
+      const b = el('g', { class: `nb f-${x.t}`, tabindex: '0', role: 'button', 'aria-label': `${x.m}, ${x.uf}. Necessidade ${nf(x.nota)} de 10, ${FX[x.t][0]}. Perdas ${num1(x.ipd)}%. Abrir operador.` });
       Object.assign(b.dataset, { r: x.r, x: px, y: py });
-      const c = el('circle', { cx: 0, cy: 0, r: r.toFixed(2) }); c.style.fill = corNec(x.nota);
-      b.append(c); g.append(b);
+      b.append(el('circle', { cx: 0, cy: 0, r: r.toFixed(2) })); g.append(b);
     });
   escala();
 }
@@ -357,23 +376,26 @@ function abreOperador(x) {
   const id = x.cias.find(i => companhia(i));
   if (id) abreFicha(id); else toast(`${x.m}: operador (${x.op}) não está no mapa.`);
 }
+function linhaCia(o, num) {
+  const c = companhia(o.id), l = leadDe(o.id), i = CINFO[o.id];
+  const det = o.est ? `${esc(c.uf)} · estimada pela média de ${o.nUF} ${o.nUF > 1 ? 'cidades' : 'cidade'} do estado no ranking` : `${esc(c.uf)} · perdas ${num1(o.ipd)}% · ${mm(o.inv)} investidos (2020–24)${i && i.inv ? ' · prevê ' + esc(i.inv) : ''}`;
+  return `<li><button type="button" class="nc f-${o.t}" data-act="nec-cia" data-id="${esc(o.id)}">${num ? `<span class="pos">${o.pos}</span>` : ''}${selo(c)}<span class="nc-t"><strong>${esc(c.nome)}</strong><small>${det}</small></span>${l ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : '<span class="sem-l">sem lead</span>'}<b class="nn f-${o.t}${o.est ? ' est' : ''}">${nf(o.nota)}</b></button></li>`;
+}
 function renderNecPainel() {
   const box = $('#nec-painel');
-  const fq = o => (!necQ || o.q === necQ) && (!F.uf || (o.uf || '') === F.uf || (o.cid && o.cid.some(x => x.uf === F.uf))) && (!F.regiao || REG_DE[o.uf || (o.cid && o.cid[0].uf)] === F.regiao);
-  const cont = {}; QORD.forEach(q => { cont[q] = 0; });
-  const base = necAba === 'cias' ? Object.values(NEC).filter(o => companhia(o.id)) : RK;
-  base.forEach(o => { cont[o.q]++; });
-  const lista = base.filter(fq).sort((a, b) => b.nota - a.nota);
-  const item = necAba === 'cias'
-    ? o => { const c = companhia(o.id), l = leadDe(o.id); return `<li><button type="button" class="nc" data-act="nec-cia" data-id="${esc(o.id)}">${selo(c)}<span class="nc-t"><strong>${esc(c.nome)}</strong><small>Perdas ${num1(o.ipd)}% · ${Math.round(o.ipl)} L/lig/dia · ${mm(o.inv)} investidos (2020–24) · ${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no ranking</small><span class="nc-c">${quadChip(o.q)}${l ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : ''}</span></span><b class="nn" style="--n:${o.nota}">${nf(o.nota)}</b></button></li>`; }
-    : x => `<li><button type="button" class="nc" data-act="nec-mun" data-r="${x.r}"><span class="selo mun" aria-hidden="true">${x.uf}</span><span class="nc-t"><strong>${esc(x.m)}</strong><small>${esc(x.op)} · perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia · ${mm(x.inv)} (2020–24)</small><span class="nc-c">${quadChip(x.q)}</span></span><b class="nn" style="--n:${x.nota}">${nf(x.nota)}</b></button></li>`;
-  box.innerHTML = `<div class="np-h"><h2>Melhores clientes por necessidade</h2><p class="hint">Mais perdas de água e mais investimento = nota maior.</p></div>
-    <div class="seg sm" role="group" aria-label="Listar">${[['cias', 'Companhias'], ['mun', 'Municípios']].map(([v, t]) => `<button type="button" class="${necAba === v ? 'on' : ''}" aria-pressed="${necAba === v}" data-act="nec-aba" data-v="${v}">${t}</button>`).join('')}</div>
-    <div class="qfil" role="group" aria-label="Filtrar por quadrante"><button type="button" class="chip-d ${necQ ? '' : 'on'}" aria-pressed="${!necQ}" data-act="nec-q" data-v="">Todos</button>${QORD.map(q => `<button type="button" class="chip-d ${necQ === q ? 'on' : ''}" aria-pressed="${necQ === q}" data-act="nec-q" data-v="${q}"><i class="qd-dot q-${q}"></i>${QUAD[q][0]} <b>${cont[q]}</b></button>`).join('')}</div>
-    ${necQ ? `<p class="np-play"><strong>Como abordar:</strong> ${QUAD[necQ][2]}</p>` : ''}
+  const fc = faixasCias();
+  const lista = necAba === 'cias'
+    ? fc.filter(o => (!necQ || String(o.t) === necQ) && (!F.uf || o.uf === F.uf || companhia(o.id).uf === F.uf) && (!F.regiao || REG_DE[companhia(o.id).uf] === F.regiao) && passa(companhia(o.id)))
+    : RK.filter(x => (!necQ || String(x.t) === necQ) && (!F.uf || x.uf === F.uf) && (!F.regiao || REG_DE[x.uf] === F.regiao)).sort((a, b) => b.nota - a.nota);
+  const item = necAba === 'cias' ? o => linhaCia(o, true)
+    : x => `<li><button type="button" class="nc f-${x.t}" data-act="nec-mun" data-r="${x.r}"><span class="pos">${x.pos}</span><span class="selo mun" aria-hidden="true">${x.uf}</span><span class="nc-t"><strong>${esc(x.m)}</strong><small>${esc(x.op)} · perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia · ${mm(x.inv)} (2020–24)</small></span><b class="nn f-${x.t}">${nf(x.nota)}</b></button></li>`;
+  box.innerHTML = `<div class="np-h"><h2>Ranking de necessidade</h2><p class="hint">Mais perdas de água e mais investimento = mais escuro.</p></div>
+    <div class="seg sm" role="group" aria-label="Ver no mapa">${[['cias', 'Companhias'], ['mun', 'Municípios']].map(([v, t]) => `<button type="button" class="${necAba === v ? 'on' : ''}" aria-pressed="${necAba === v}" data-act="nec-aba" data-v="${v}">${t}</button>`).join('')}</div>
+    <div class="fx3" role="group" aria-label="Filtrar por faixa">${FORD.map(t => `<button type="button" class="fx f-${t} ${necQ === String(t) ? 'on' : ''}" aria-pressed="${necQ === String(t)}" data-act="nec-q" data-v="${necQ === String(t) ? '' : t}"><span>${FX[t][0]}</span><b>${(necAba === 'cias' ? fc : RK).filter(o => o.t === t).length}</b></button>`).join('')}</div>
+    ${necQ ? `<p class="np-play"><strong>Como abordar:</strong> ${FX[necQ][1]}</p>` : ''}
     <ol class="nlist">${lista.slice(0, necTudo ? 999 : 12).map(item).join('') || '<li class="empty">Nada com esses filtros.</li>'}</ol>
     ${lista.length > 12 ? `<button class="btn sm" type="button" data-act="nec-tudo">${necTudo ? 'Mostrar só as 12 primeiras' : `Mostrar todas (${lista.length})`}</button>` : ''}
-    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Perdas = média das posições em % de perdas na distribuição e litros perdidos por ligação. Investimento = total de 2020 a 2024. Quadrantes pela mediana.</p>`;
+    <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo do ranking. Companhias sem cidade no ranking recebem a média das cidades do seu estado (marcadas como estimadas).</p>`;
 }
 function escala() {
   const z = Math.pow(Math.max(.1, k()), .78);
@@ -431,10 +453,10 @@ function eventosMapa() {
     const r = wrap.getBoundingClientRect();
     if (nb) {
       const x = RK.find(y => y.r === +nb.dataset.r);
-      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-st">Necessidade ${nf(x.nota)} · ${QUAD[x.q][0]}</span>`;
+      tip.innerHTML = `<strong>${esc(x.m)}, ${x.uf}</strong><span>${esc(x.op)} · ${x.pop.toLocaleString('pt-BR')} hab.</span><span>Perdas ${num1(x.ipd)}% · ${Math.round(x.ipl)} L/lig/dia</span><span>Investiu ${mm(x.inv)} de 2020 a 2024</span><span class="tip-fx"><i class="sw f-${x.t}"></i>Necessidade ${nf(x.nota)} · nº ${x.pos} de 100</span>`;
     } else if (pin) {
       const c = companhia(pin.dataset.id), l = leadDe(c.id);
-      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
+      tip.innerHTML = `<strong>${esc(c.nome)}</strong><span>${esc(c.ini)} · ${esc(c.cidade)}, ${esc(c.uf)}</span>${corMapa === 'nec' && necDe(c.id) ? `<span class="tip-fx"><i class="sw f-${necDe(c.id).t}"></i>Necessidade ${nf(necDe(c.id).nota)}${necDe(c.id).est ? ' (estimada)' : ''} · nº ${necDe(c.id).pos}</span>` : ''}${l ? `<span class="tip-st" style="--c:var(--tp-${l.temp})">${EST[l.estagio]}${tempAt(l) ? ' · temperatura ' + TEMP[l.temp].toLowerCase() : ''}${vencido(l) ? ' · passo vencido' : ''}</span>` : ''}`;
     } else if (uf) {
       const u = uf.dataset.uf, o = calor(filtradas())[u];
       tip.innerHTML = `<strong>${esc(UF_NOMES[u])}</strong><span>${o ? TEMPS.filter(([t]) => o[t]).map(([t, n]) => `${o[t]} ${n.toLowerCase()}`).join(' · ') : 'Sem leads ativos'}</span><span>Clique para ${F.uf === u ? 'tirar o filtro' : 'filtrar'}</span>`;
@@ -537,20 +559,23 @@ function renderFicha() {
   if (foco && document.getElementById(foco)) document.getElementById(foco).focus({ preventScroll: true });
 }
 function raioX(c) {
-  const i = CINFO[c.id] || {}, o = NEC[c.id], semDado = '<span class="sd">Sem dado público levantado</span>';
+  faixasCias();
+  const i = CINFO[c.id] || {}, o = necDe(c.id), semDado = '<span class="sd">Sem dado público levantado</span>', tot = companhias().length;
   return `<section class="blk rx" aria-labelledby="h-rx">
     <div class="rx-top">${selo(c, 'lg')}<div class="rx-tt"><h3 id="h-rx">Raio-X</h3><label class="link sm file">${logos.has(c.id) ? 'Trocar logo' : 'Adicionar logo'}<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label></div>
-      ${o ? `<div class="rx-n"><b class="nn lg" style="--n:${o.nota}">${nf(o.nota)}</b><small>necessidade<br>de 0 a 10</small></div>` : ''}</div>
+      ${o ? `<div class="rx-n"><b class="nn lg f-${o.t}${o.est ? ' est' : ''}">${nf(o.nota)}</b><small>nº ${o.pos} de ${tot}<br>${o.est ? 'estimada' : 'necessidade'}</small></div>` : ''}</div>
     <dl class="rx-dl">
       <div><dt>Municípios atendidos</dt><dd>${i.mun ? esc(i.mun) : semDado}</dd></div>
       <div><dt>Investimento previsto</dt><dd>${i.inv ? esc(i.inv) : semDado}</dd></div>
-      ${o ? `<div><dt>Perdas de água</dt><dd>${num1(o.ipd)}% · ${Math.round(o.ipl)} L por ligação/dia</dd></div><div><dt>Investiu de 2020 a 2024</dt><dd>${mm(o.inv)}</dd></div>` : ''}
+      ${o && !o.est ? `<div><dt>Perdas de água</dt><dd>${num1(o.ipd)}% · ${Math.round(o.ipl)} L por ligação/dia</dd></div><div><dt>Investiu de 2020 a 2024</dt><dd>${mm(o.inv)}</dd></div>` : ''}
+      ${o && o.est ? `<div><dt>Perdas no estado</dt><dd>${num1(o.ipdUF)}% em média</dd></div>` : ''}
     </dl>
-    ${o ? `<p class="rx-q">${quadChip(o.q)}<span>${QUAD[o.q][2]}</span></p>
-    <details class="rx-cid"><summary>${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no Ranking do Saneamento 2026</summary>
+    ${o ? `<p class="rx-q">${fxChip(o.t)}<span>${FX[o.t][1]}</span></p><p class="hint rx-dg">${diag(o)}${o.est ? ' (média do estado)' : ''}.</p>` : ''}
+    ${o && !o.est ? `<details class="rx-cid"><summary>${o.cid.length} ${o.cid.length > 1 ? 'cidades' : 'cidade'} no Ranking do Saneamento 2026</summary>
       <div class="tbl-w"><table><thead><tr><th scope="col">Município</th><th scope="col">Perdas</th><th scope="col">L/lig/dia</th><th scope="col">Invest. 2020–24</th><th scope="col">Nota</th></tr></thead>
-      <tbody>${o.cid.map(x => `<tr><th scope="row">${esc(x.m)}, ${x.uf}${x.obs ? `<small>${esc(x.obs)}</small>` : ''}</th><td>${num1(x.ipd)}%</td><td>${Math.round(x.ipl)}</td><td>${mm(x.inv)}</td><td><b class="nn" style="--n:${x.nota}">${nf(x.nota)}</b></td></tr>`).join('')}</tbody></table></div>
-    </details>` : '<p class="hint">Nenhuma cidade desta companhia está entre as 100 maiores do Ranking do Saneamento 2026, então não há nota de necessidade.</p>'}
+      <tbody>${o.cid.map(x => `<tr><th scope="row">${esc(x.m)}, ${x.uf}${x.obs ? `<small>${esc(x.obs)}</small>` : ''}</th><td>${num1(x.ipd)}%</td><td>${Math.round(x.ipl)}</td><td>${mm(x.inv)}</td><td><b class="nn f-${x.t}">${nf(x.nota)}</b></td></tr>`).join('')}</tbody></table></div>
+    </details>` : ''}
+    ${o && o.est ? `<p class="hint">Nenhuma cidade desta companhia está entre as 100 maiores do Ranking do Saneamento 2026. A nota é estimada pela média das ${o.nUF} ${o.nUF > 1 ? 'cidades' : 'cidade'} de ${esc(c.uf)} no ranking; confirme as perdas na visita.</p>` : ''}
     ${i.url ? `<p class="hint">Municípios e investimento: <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.fonte)}</a></p>` : ''}
   </section>`;
 }
@@ -936,18 +961,16 @@ function renderEstrategia() {
     <div class="est-body">${corpo}</div>`;
 }
 function estOnde() {
-  const cias = Object.values(NEC).filter(o => companhia(o.id)).sort((a, b) => b.nota - a.nota);
-  const por = {}; QORD.forEach(q => { por[q] = cias.filter(o => o.q === q); });
-  const linha = (o, i) => { const c = companhia(o.id), l = leadDe(o.id); return `<li><button type="button" class="nc" data-act="nec-cia" data-id="${esc(o.id)}"><span class="pos">${i + 1}</span>${selo(c)}<span class="nc-t"><strong>${esc(c.nome)}</strong><small>${esc(c.uf)} · perdas ${num1(o.ipd)}% · ${mm(o.inv)} investidos (2020–24)${CINFO[o.id] && CINFO[o.id].inv ? ' · prevê ' + esc(CINFO[o.id].inv) : ''}</small></span>${l ? `<span class="temp t-${l.temp}">${TEMP[l.temp]}</span>` : '<span class="sem-l">sem lead</span>'}<b class="nn" style="--n:${o.nota}">${nf(o.nota)}</b></button></li>`; };
-  const semLead = por.ir.filter(o => !leadDe(o.id));
+  const fc = faixasCias(), por = {}; FORD.forEach(t => { por[t] = fc.filter(o => o.t === t); });
+  const semLead = por[1].filter(o => !leadDe(o.id));
   return `
-    <section class="card"><div class="blk-h"><div><h2>Onde ir primeiro</h2><p class="hint">Companhias com mais perdas de água e mais investimento ganham nota maior. Base: as 100 maiores cidades do Ranking do Saneamento 2026.</p></div><button class="btn sm" type="button" data-act="ver-nec" data-v="">Ver no mapa</button></div>
-      <div class="quad4">${QORD.map(q => `<button type="button" class="q4 q-${q}" data-act="ver-nec" data-v="${q}"><span class="q4-n">${por[q].length}</span><span class="q4-t">${QUAD[q][0]}</span><span class="q4-d">${QUAD[q][1]}</span><span class="q4-p">${QUAD[q][2]}</span></button>`).join('')}</div>
-      ${semLead.length ? `<p class="alerta">${semLead.length} ${semLead.length > 1 ? 'companhias "Ir já" ainda não têm lead' : 'companhia "Ir já" ainda não tem lead'}: ${semLead.slice(0, 6).map(o => esc(companhia(o.id).nome)).join(', ')}${semLead.length > 6 ? '…' : ''}.</p>` : ''}
+    <section class="card"><div class="blk-h"><div><h2>Onde ir primeiro</h2><p class="hint">Todas as ${fc.length} companhias, da maior para a menor necessidade: mais perdas de água e mais investimento = mais escuro.</p></div><button class="btn sm" type="button" data-act="ver-nec" data-v="">Ver no mapa</button></div>
+      <div class="quad4 q3">${FORD.map(t => `<button type="button" class="q4 f-${t}" data-act="ver-nec" data-v="${t}"><span class="q4-n">${por[t].length}</span><span class="q4-t">${FX[t][0]}</span><span class="q4-p">${FX[t][1]}</span></button>`).join('')}</div>
+      ${semLead.length ? `<p class="alerta">${semLead.length} ${semLead.length > 1 ? 'companhias de mais necessidade ainda não têm lead' : 'companhia de mais necessidade ainda não tem lead'}: ${semLead.slice(0, 8).map(o => esc(companhia(o.id).nome)).join(', ')}${semLead.length > 8 ? '…' : ''}.</p>` : ''}
     </section>
-    <section class="card"><div class="blk-h"><h2>Ranking de necessidade</h2><span class="hint">${cias.length} companhias com dados</span></div>
-      <ol class="nlist rk">${cias.map(linha).join('')}</ol>
-      <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = 50% perdas (% na distribuição e litros por ligação) + 50% investimento de 2020 a 2024, em posição relativa. Quadrantes pela mediana.</p>
+    <section class="card"><div class="blk-h"><h2>Ranking de necessidade</h2><span class="hint">${fc.filter(o => !o.est).length} com dados do ranking · ${fc.filter(o => o.est).length} estimadas pelo estado</span></div>
+      ${FORD.map(t => `<h3 class="fx-h f-${t}"><i class="sw f-${t}"></i>${FX[t][0]}</h3><ol class="nlist rk">${por[t].map(o => linhaCia(o, true)).join('')}</ol>`).join('')}
+      <p class="np-f">Fonte: <a href="${esc(FONTE_RK.url)}" target="_blank" rel="noopener">${esc(FONTE_RK.nome)}</a>. Nota = metade perdas (% na distribuição e litros por ligação) + metade investimento de 2020 a 2024, em posição relativa. Faixas: terço de cima, do meio e de baixo. Companhias sem cidade no ranking recebem a média das cidades do seu estado.</p>
     </section>`;
 }
 function estMetas() {
@@ -1190,7 +1213,7 @@ document.addEventListener('click', ev => {
     case 'limpa-f': if (d.k === 'q') $('#busca').value = ''; aplicaFiltro(d.k, F0[d.k]); break;
     case 'limpa-tudo': F = { ...F0 }; $('#busca').value = ''; focaArea(); renderTudo(); break;
     case 'cor': corMapa = d.v; lembra('gf-cor2', d.v); renderMapa(); break;
-    case 'nec-aba': necAba = d.v; renderNecPainel(); break;
+    case 'nec-aba': necAba = d.v; renderMapa(); break;
     case 'nec-tudo': necTudo = !necTudo; renderNecPainel(); break;
     case 'nec-q': necQ = d.v; renderMapa(); break;
     case 'nec-cia': focaCia(d.id); abreFicha(d.id); break;
@@ -1268,6 +1291,15 @@ if (!jaViu && !companhias().some(c => leadDe(c.id))) setTimeout(exemplos, 0);
 window.addEventListener('hashchange', rota);
 renderAutor();
 if (window.matchMedia('(max-width: 640px)').matches) $('#legenda-box').open = false;
+/* passar o mouse na lista destaca no mapa */
+const npl = $('#nec-painel');
+const tiraHl = () => svg.querySelectorAll('.hl').forEach(e => e.classList.remove('hl'));
+npl.addEventListener('pointerover', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-act="nec-cia"],[data-act="nec-mun"]'); tiraHl(); if (!b) return;
+  const alvo = b.dataset.id ? svg.querySelector(`g.pin[data-id="${CSS.escape(b.dataset.id)}"]`) : svg.querySelector(`g.nb[data-r="${b.dataset.r}"]`);
+  if (alvo) { alvo.classList.add('hl'); alvo.parentNode.append(alvo); }
+});
+npl.addEventListener('pointerleave', tiraHl);
 montaMapa();
 rota();
 carregaLogos().then(() => { if (logos.size) renderTudo(); });

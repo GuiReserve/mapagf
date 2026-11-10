@@ -7,7 +7,7 @@ App para quem visita clientes do saneamento: mapa do Brasil com as companhias p�
 ## Abas
 - **Mapa**: estados coloridos pela temperatura mais alta entre os leads; pinos azuis (públicas) e laranja (privadas), com o miolo na cor da temperatura.
 - **Leads**: funil por etapa, arrastar e soltar.
-- **Mapa › Necessidade**: os 100 maiores municípios do Ranking do Saneamento 2026, com nota de 0 a 10 (metade perdas de água, metade investimento) e lista dos melhores clientes.
+- **Mapa › Necessidade**: os 100 maiores municípios do Ranking do Saneamento 2026, com nota de 0 a 10 (metade perdas de água, metade investimento). Todas as companhias em três faixas de cor: escuro (mais necessidade), médio e claro. A legenda filtra por faixa.
 - **Estratégia**: onde ir primeiro (ranking de necessidade por companhia), meta do trimestre e matriz de prioridade.
 - **Raio-X na ficha**: municípios atendidos, investimento previsto (com fonte), perdas, cidades do ranking e logo da companhia.
 

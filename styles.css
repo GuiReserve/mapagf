@@ -32,6 +32,7 @@
   --tp-media: #E59A0B;
   --tp-baixa: #2F7FC4;
   --nd: #5B36C9;
+  --f1: var(--nd); --f2: color-mix(in srgb, var(--nd) 58%, var(--surface)); --f3: color-mix(in srgb, var(--nd) 27%, var(--surface));
   --hm-1: #FBE6BF;
   --hm-2: #F0903F;
   --hm-3: #C42A1E;
@@ -898,7 +899,7 @@ h1 { font-size: 34px; }
 .q4-t { font-weight: 700; }
 .q4-d { font-size: 13px; color: var(--muted); }
 .q4-p { font-size: 13.5px; margin-top: 4px; }
-.nlist.rk { max-height: 640px; overflow: auto; }
+.nlist.rk { max-height: none; }
 @media (max-width: 1000px) {
   #view-mapa.nec { grid-template-columns: 1fr; }
   .nec-painel { max-height: none; }
@@ -909,4 +910,47 @@ h1 { font-size: 34px; }
   .quad4 { grid-template-columns: 1fr; }
   .nc-t small { font-size: 12px; }
   .nec-painel { border-radius: 16px; padding: 12px; }
+}
+
+/* faixas do ranking: escuro, médio, claro */
+.f-1 { --fc: var(--f1); --ft: var(--surface); }
+.f-2 { --fc: var(--f2); --ft: var(--ink); }
+.f-3 { --fc: var(--f3); --ft: var(--ink); }
+i.sw.f-1, i.sw.f-2, i.sw.f-3 { background: var(--fc); border-color: transparent; display: inline-block; }
+.qd.f-1, .qd.f-2, .qd.f-3 { background: var(--fc); color: var(--ft); border-color: var(--fc); }
+.nn.f-1, .nn.f-2, .nn.f-3 { background: var(--fc); color: var(--ft); }
+.nn.est { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--fc); }
+#map g.pin.nt .gota { fill: var(--fc); stroke: var(--surface); }
+#map g.pin.nt-1 { --fc: var(--f1); } #map g.pin.nt-2 { --fc: var(--f2); } #map g.pin.nt-3 { --fc: var(--f3); }
+#map g.pin.nt-3 .gota { stroke: color-mix(in srgb, var(--nd) 55%, var(--surface)); }
+#map g.nb.f-1 circle, #map g.nb.f-2 circle, #map g.nb.f-3 circle { fill: var(--fc); }
+#map g.pin.hl .gota, #map g.nb.hl circle { stroke: var(--ink); stroke-width: 2.2; }
+#map g.pin.hl .body { transform: scale(1.35); transform-origin: 0 0; }
+.lg-fx { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.lg-fx button { display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 4px 6px; cursor: pointer; font: inherit; font-size: 13.5px; color: var(--ink); text-align: left; }
+.lg-fx button:hover { background: var(--surface-2); }
+.lg-fx button.on { border-color: var(--nd); background: color-mix(in srgb, var(--nd) 8%, var(--surface)); }
+.lg-fx button b { margin-left: auto; color: var(--muted); font-weight: 600; }
+.lg-fx .sw { width: 16px; height: 12px; }
+.tip .tip-fx { display: inline-flex; align-items: center; gap: 6px; opacity: 1; margin-top: 2px; }
+.tip .tip-fx .sw { width: 10px; height: 10px; border-radius: 3px; }
+.fx3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fx { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 10px; border-radius: 12px; border: 2px solid transparent; background: var(--fc); color: var(--ft); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; text-align: left; line-height: 1.2; transition: transform .15s var(--ease), box-shadow .15s; }
+.fx b { font-family: "Bricolage Grotesque", sans-serif; font-size: 22px; }
+.fx:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.fx.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface) inset; }
+.nc.f-1, .nc.f-2, .nc.f-3 { border-left: 4px solid var(--fc); border-radius: 4px 12px 12px 4px; }
+.q4.f-1, .q4.f-2, .q4.f-3 { border-top: 0; background: var(--fc); color: var(--ft); border-color: var(--fc); }
+.q4.f-1 .q4-p, .q4.f-2 .q4-p, .q4.f-3 .q4-p { color: inherit; opacity: .92; }
+.quad4.q3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fx-h { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 14px 0 4px; }
+.fx-h .sw { width: 14px; height: 14px; }
+.rx-dg { margin: -4px 0 0; font-size: 13px; }
+@media (max-width: 640px) { .quad4.q3 { grid-template-columns: 1fr; } .fx b { font-size: 19px; } }
+@media (max-width: 640px) {
+  .nc { gap: 8px; padding: 9px 8px; }
+  .nc .sem-l { display: none; }
+  .nc .temp { font-size: 11.5px; padding: 2px 7px; }
+  .nc .selo { width: 30px; height: 30px; font-size: 12px; }
+  .nc .pos { width: 16px; }
 }
