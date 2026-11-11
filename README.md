@@ -13,11 +13,15 @@ App para quem visita clientes do saneamento: mapa do Brasil com as companhias p�
 
 ## Uso
 - Botão **Registrar**: visita em menos de 1 minuto (temperatura, o que aconteceu, produto oferecido, ata).
+- **Foto no registro**: tire ou escolha fotos ao registrar a visita; ficam na ficha da companhia.
+- **Relatório em Word**: no rodapé, na aba Leads, na Estratégia ou na ficha (relatório de uma companhia). Inclui resumo do funil, ranking de necessidade e uma seção por companhia com histórico, atas e fotos.
 - Os dados ficam no navegador (localStorage + IndexedDB para as atas). Use **Baixar backup (.txt)** no rodapé para salvar tudo, inclusive as atas, e **Importar backup** para restaurar em outro aparelho.
 
 ## Tecnologia
 HTML, CSS e JavaScript puros, sem build. Para rodar localmente, abra `index.html` ou sirva a pasta com qualquer servidor estático.
 
 Perdas e investimento: [Ranking do Saneamento 2026](https://tratabrasil.org.br/wp-content/uploads/2026/03/Estudo-da-GO-Associados-Ranking-do-Saneamento-de-2026.pdf), Instituto Trata Brasil e GO Associados (dados SINISA 2024).
+
+Geração do Word: biblioteca [docx](https://github.com/dolanmiu/docx) (MIT), incluída em `docx.min.js`.
 
 Contornos dos estados: [@svg-maps/brazil](https://github.com/VictorCazanave/svg-maps) (CC BY 4.0).

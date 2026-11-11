@@ -52,6 +52,8 @@ const parseValor = s => { const n = Number(String(s || '').replace(/[^\d,]/g, ''
 const reduz = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const ICO = {
+  foto: '<rect x="2" y="4" width="12" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2.3"/><path d="M5.5 4l1-1.5h3l1 1.5"/>',
+  word: '<path d="M4 2h5.5L12 4.5V14H4z"/><path d="M9.5 2v2.5H12M6 7.5l.8 3.5 1.2-3 1.2 3 .8-3.5"/>',
   interacao: '<path d="M3 3.5h10v6.500H7.500L4.500 12.500V10H3z"/>',
   lead: '<path d="M4 13.500V3h7.500L10 5.500 11.500 8H4"/>',
   produto: '<path d="M3.500 8.500l3 3 6-7"/>',
@@ -82,7 +84,7 @@ const salvar = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } cat
 function reg(id) {
   if (!S.reg[id]) S.reg[id] = {};
   const r = S.reg[id];
-  r.prod = r.prod || {}; r.atas = r.atas || []; r.org = r.org || []; r.notas = r.notas || ''; r.log = r.log || [];
+  r.prod = r.prod || {}; r.atas = r.atas || []; r.org = r.org || []; r.notas = r.notas || ''; r.log = r.log || []; r.fotos = r.fotos || [];
   return r;
 }
 const ler = id => S.reg[id] || {};
@@ -594,7 +596,7 @@ function renderFicha() {
       <button class="btn icon" type="button" data-act="fechar-ficha" aria-label="Fechar ficha">×</button>
     </header>
     <div class="f-body" id="f-panel">
-      <button class="btn primary big full" type="button" data-act="rapido" data-id="${esc(sel)}">${ico('interacao', 18)} Registrar visita</button>
+      <div class="f-acts"><button class="btn primary big" type="button" data-act="rapido" data-id="${esc(sel)}">${ico('interacao', 18)} Registrar visita</button><button class="btn big" type="button" data-act="relatorio" data-id="${esc(sel)}">${ico('word', 18)} Relatório</button></div>
       ${raioX(c)}
       <section class="blk" aria-labelledby="h-temp"><h3 id="h-temp">Temperatura</h3>${radios('lt', TEMPS, l && l.temp, 'temp', 'tp')}</section>
       <section class="blk" aria-labelledby="h-prod"><h3 id="h-prod">Produto oferecido</h3>
@@ -602,12 +604,15 @@ function renderFicha() {
       <section class="blk" aria-labelledby="h-atas"><div class="blk-h"><h3 id="h-atas">Atas</h3><label class="btn sm file">${ico('ata', 14)} Anexar ata<input type="file" id="ata-file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp,.heic,.csv"></label></div>
         ${r.atas.length ? `<ul class="atas">${r.atas.slice().sort((a, b) => (b.data || '').localeCompare(a.data || '')).map(a => `<li><span class="arq">${ico('ata', 14)}<span><strong>${esc(a.titulo || a.nome)}</strong><small>${dataBR(a.data)} · ${tamanho(a.tam)}</small></span></span>
           <button class="btn sm" type="button" data-act="baixar-ata" data-id="${a.id}">Baixar</button><button class="link danger sm" type="button" data-act="remover-ata" data-id="${a.id}">Remover</button></li>`).join('')}</ul>` : '<p class="empty">Nenhuma ata. Fotografe ou anexe o arquivo da reunião.</p>'}</section>
+      <section class="blk" aria-labelledby="h-fotos"><div class="blk-h"><h3 id="h-fotos">Fotos</h3><label class="btn sm file">${ico('foto', 14)} Adicionar foto<input type="file" id="foto-file" accept="image/*" multiple></label></div>
+        ${r.fotos.length ? `<ul class="fotos">${r.fotos.slice().sort((a, b) => b.data.localeCompare(a.data)).map(f => `<li class="ft"><button type="button" class="ft-b" data-act="ver-foto" data-id="${f.id}" aria-label="Ver foto de ${dataBR(f.data)}"><img data-foto="${f.id}" alt=""></button><span>${dataCurta(f.data)}</span><button class="ft-x" type="button" data-act="rem-foto" data-id="${f.id}" aria-label="Remover foto de ${dataBR(f.data)}">×</button></li>`).join('')}</ul>` : '<p class="empty">Nenhuma foto. Tire uma foto na visita pelo botão Registrar.</p>'}</section>
       ${l ? `<section class="blk" aria-labelledby="h-fun"><h3 id="h-fun">Funil</h3>${radios('le', ESTAGIOS, l.estagio, 'estagio', 'st')}
         <label class="col fval"><span>Valor estimado em R$ (opcional)</span><input type="text" inputmode="numeric" id="l-valor" data-lead="valor" value="${l.valor ? Number(l.valor).toLocaleString('pt-BR') : ''}" placeholder="Ex.: 500.000"></label>
         <button class="link danger sm rem-lead" type="button" data-act="rem-lead" data-id="${esc(sel)}">Remover lead</button></section>` : ''}
       <section class="blk" aria-labelledby="h-tl"><h3 id="h-tl">Histórico</h3>${timeline(logDe(sel), false)}</section>
     </div>`;
   $('.f-body', ficha).scrollTop = rolagem;
+  preencheFotos(ficha);
   if (foco && document.getElementById(foco)) document.getElementById(foco).focus({ preventScroll: true });
 }
 function raioX(c) {
@@ -678,6 +683,7 @@ ficha.addEventListener('change', ev => {
   else if (t.name === 'int-canal') ultimoCanal = t.value;
   else if (t.id === 'ata-file') anexa(t);
   else if (t.id === 'logo-file') trocaLogo(t);
+  else if (t.id === 'foto-file') { const fs = [...t.files], id = sel; t.value = ''; guardaFotos(id, fs).then(n => { salvar(); renderFicha(); renderTudo(); toast(n ? (n > 1 ? `${n} fotos adicionadas.` : 'Foto adicionada.') : 'Escolha uma imagem.'); }); }
 });
 ficha.addEventListener('input', ev => {
   if (ev.target.id !== 'notas') return;
@@ -700,6 +706,39 @@ ficha.addEventListener('keydown', ev => {
   const j = ev.key === 'Home' ? 0 : ev.key === 'End' ? tabs.length - 1 : (i + (ev.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
   ev.preventDefault(); fichaAba = tabs[j].dataset.v; renderFicha(); $('#ft-' + fichaAba).focus();
 });
+/* ---------- fotos ---------- */
+async function reduzFoto(f) {
+  try {
+    const bm = await createImageBitmap(f), m = 1600, k2 = Math.min(1, m / Math.max(bm.width, bm.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(bm.width * k2); cv.height = Math.round(bm.height * k2);
+    cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height); bm.close && bm.close();
+    const b = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', .82));
+    return b || f;
+  } catch (e) { return f; }
+}
+async function guardaFotos(id, files, leg = '') {
+  const r = reg(id); let n = 0;
+  for (const f of files) {
+    if (!/^image\//.test(f.type) && !/\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)) continue;
+    const b = await reduzFoto(f), fo = { id: uid('foto'), data: agora(), nome: f.name.replace(/\.[^.]+$/, '') + (b.type === 'image/jpeg' ? '.jpg' : ''), tipo: b.type || f.type, tam: b.size, leg };
+    await arqPut(fo.id, b); r.fotos.push(fo); n++;
+  }
+  if (n) logar(id, 'ata', `Adicionou ${n} ${n > 1 ? 'fotos' : 'foto'}`);
+  return n;
+}
+const fotoUrls = new Map();
+async function urlFoto(fid) { if (fotoUrls.has(fid)) return fotoUrls.get(fid); const b = await arqGet(fid); if (!b) return ''; const u = URL.createObjectURL(b); fotoUrls.set(fid, u); return u; }
+async function preencheFotos(raiz = document) { for (const im of raiz.querySelectorAll('img[data-foto]')) { if (im.getAttribute('src')) continue; const u = await urlFoto(im.dataset.foto); if (u) im.src = u; else im.closest('.ft') && im.closest('.ft').classList.add('sem'); } }
+async function verFoto(fid) {
+  const fo = reg(sel).fotos.find(x => x.id === fid); if (!fo) return;
+  abreDialogo(`<div class="frm foto-v"><div class="qr-top"><h2 id="dlg-title">${esc(fo.leg || 'Foto')} · ${dataBR(fo.data)}</h2><button class="btn icon" type="button" data-act="fechar-dlg" aria-label="Fechar">×</button></div><img data-foto="${fo.id}" alt="Foto da visita de ${dataBR(fo.data)}"></div>`);
+  preencheFotos(dlg);
+}
+function removeFoto(fid) {
+  const r = reg(sel), fo = r.fotos.find(x => x.id === fid); if (!fo) return;
+  r.fotos = r.fotos.filter(x => x.id !== fid); logar(sel, 'ata', 'Removeu uma foto'); salvar(); renderFicha();
+  toast('Foto removida.', { rotulo: 'Desfazer', fn: () => { r.fotos.push(fo); salvar(); renderFicha(); } });
+}
 async function anexa(input) {
   const f = input.files[0]; input.value = '';
   if (!f) return;
@@ -764,7 +803,7 @@ function renderLeads() {
   const ordena = (a, b) => { const la = leadDe(a.id), lb = leadDe(b.id); return (COL_T[lb.temp] ?? 1) - (COL_T[la.temp] ?? 1) || (lb.valor || 0) - (la.valor || 0); };
   $('#view-leads').innerHTML = `
     <div class="vh"><div><h1>Leads</h1><p class="hint">Arraste o cartão para mudar o estágio.</p></div>
-      <div class="acts">${temEx ? '' : ''}<button class="btn primary" type="button" data-act="add-lead">Adicionar lead</button></div></div>
+      <div class="acts"><button class="btn" type="button" data-act="relatorio">${ico('word', 16)} Relatório em Word</button><button class="btn primary" type="button" data-act="add-lead">Adicionar lead</button></div></div>
     ${!total ? `<div class="card vazio"><h2>Nenhum lead ainda</h2><p>Registre uma visita e a companhia entra no funil.</p>
       <div class="acts center"><button class="btn primary" type="button" data-act="add-lead">Adicionar lead</button><button class="btn" type="button" data-act="exemplos">Ver com exemplos</button></div></div>` : `
     <div class="board">${ESTAGIOS.map(([e, t]) => { const col = lista.filter(c => leadDe(c.id).estagio === e).sort(ordena);
@@ -937,6 +976,7 @@ function abreRapido(id) {
     <div class="qr-txt"><label class="sr" for="qr-txt">O que aconteceu</label><textarea id="qr-txt" rows="3" placeholder="O que aconteceu na visita"></textarea>
       <button type="button" class="mic" id="qr-mic" data-act="mic" aria-label="Ditar por voz" aria-pressed="false" ${dit ? '' : 'hidden'}><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21"/></svg></button></div>
     <div class="qr-row col"><span class="qr-l">Produto oferecido</span><div class="rchips" id="qr-prods">${PRODUTOS.map(([p, n]) => `<label class="rchip tog"><input type="checkbox" name="qr-prod" id="qp-${p}" value="${p}"><span>${esc(n.replace('Soluções ', ''))}</span></label>`).join('')}</div></div>
+    <label class="btn file anexo" id="qr-foto-l">${ico('foto', 16)} <span id="qr-foto-n">Foto (opcional)</span><input type="file" id="qr-foto" accept="image/*" multiple></label>
     <label class="btn file anexo" id="qr-ata-l">${ico('ata', 16)} <span id="qr-ata-n">Anexar ata (opcional)</span><input type="file" id="qr-ata" accept=".pdf,.docx,.xlsx,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp,.heic,.csv"></label>
     <p class="err" id="qr-err" role="alert" hidden></p>
     <button class="btn primary big full" type="submit">Salvar</button></form>`);
@@ -948,14 +988,15 @@ function abreRapido(id) {
   };
   $('#qr-cia').addEventListener('input', info); info();
   ($(c0 ? '#qr-txt' : '#qr-cia')).focus();
+  $('#qr-foto').addEventListener('change', ev => { const n = ev.target.files.length; $('#qr-foto-n').textContent = n ? (n > 1 ? `${n} fotos` : '1 foto') : 'Foto (opcional)'; $('#qr-foto-l').classList.toggle('on', !!n); });
   $('#qr-ata').addEventListener('change', ev => { const f = ev.target.files[0]; $('#qr-ata-n').textContent = f ? f.name : 'Anexar ata (opcional)'; $('#qr-ata-l').classList.toggle('on', !!f); });
   $('#frm-qr').addEventListener('submit', async ev => {
     ev.preventDefault();
     if (dit && dit.active()) await dit.stop();
-    const er = $('#qr-err'), c = acha(), txt = $('#qr-txt').value.trim(), arq = $('#qr-ata').files[0];
+    const er = $('#qr-err'), c = acha(), txt = $('#qr-txt').value.trim(), arq = $('#qr-ata').files[0], fotos = [...$('#qr-foto').files];
     const falha = (m, el2) => { er.textContent = m; er.hidden = false; el2.focus(); };
     if (!c) return falha('Escolha a companhia: digite parte do nome e toque na sugestão.', $('#qr-cia'));
-    if (!txt && !arq) return falha('Escreva o que aconteceu ou anexe a ata.', $('#qr-txt'));
+    if (!txt && !arq && !fotos.length) return falha('Escreva o que aconteceu, tire uma foto ou anexe a ata.', $('#qr-txt'));
     if (arq && arq.size > 25 * 1048576) return falha('A ata passa de 25 MB. Anexe uma versão menor.', $('#qr-ata'));
     const temp = (document.querySelector('input[name="qr-temp"]:checked') || {}).value || 'media';
     const r = reg(c.id);
@@ -969,6 +1010,7 @@ function abreRapido(id) {
       const ok = await arqPut(a.id, arq); r.atas.push(a); logar(c.id, 'ata', `Anexou a ata ${arq.name}`);
       if (!ok) toast('A ata ficou só nesta sessão: o navegador não permitiu guardar o arquivo.');
     }
+    if (fotos.length) await guardaFotos(c.id, fotos, 'Visita');
     salvar(); fechaDialogo(); renderTudo(); if (ficha.open && sel === c.id) renderFicha(); toast(`Visita registrada em ${c.nome}.`);
   });
 }
@@ -1017,7 +1059,7 @@ function renderEstrategia() {
   if (!['onde', 'metas', 'matriz'].includes(estAba)) estAba = 'onde';
   const corpo = { onde: estOnde, metas: estMetas, matriz: estMatriz }[estAba]();
   $('#view-estrategia').innerHTML = `
-    <div class="vh"><div><h1>Estratégia</h1></div></div>
+    <div class="vh"><div><h1>Estratégia</h1></div><div class="acts"><button class="btn" type="button" data-act="relatorio">${ico('word', 16)} Relatório em Word</button></div></div>
     <div class="seg est-tabs" role="group" aria-label="Partes da estratégia">${abas.map(([v, t]) => `<button type="button" class="${estAba === v ? 'on' : ''}" aria-pressed="${estAba === v}" data-act="est-aba" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="est-body">${corpo}</div>`;
 }
@@ -1185,7 +1227,7 @@ async function montaBackup() {
   for (const c of Object.keys(S.reg)) if (S.reg[c].logo) {
     try { const b = await arqGet('logo-' + c); if (b) arquivos['logo-' + c] = { tipo: b.type || '', b64: await b64de(b) }; } catch (e) { /* sem logo */ }
   }
-  for (const c of Object.keys(S.reg)) for (const a of (S.reg[c].atas || [])) {
+  for (const c of Object.keys(S.reg)) for (const a of [...(S.reg[c].atas || []), ...(S.reg[c].fotos || [])]) {
     try { const b = await arqGet(a.id); if (b) arquivos[a.id] = { tipo: b.type || a.tipo || '', b64: await b64de(b) }; } catch (e) { /* ata ausente neste navegador */ }
   }
   return JSON.stringify({ app: 'mapa-gf-saneamento', versao: 2, exportadoEm: new Date().toISOString(), dados: S, arquivos });
@@ -1229,6 +1271,148 @@ function formImportar() {
     salvar(); fechaDialogo(); renderAutor(); renderTudo(); toast('Backup importado.');
   });
 }
+/* ---------- relatório em Word ---------- */
+let docxPronto = null;
+function carregaDocx() {
+  if (window.docx) return Promise.resolve(window.docx);
+  return docxPronto = docxPronto || new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'docx.min.js'; sc.onload = () => window.docx ? ok(window.docx) : no(new Error('docx')); sc.onerror = () => { docxPronto = null; no(new Error('docx')); }; document.head.append(sc); });
+}
+function formRelatorio(idUnico) {
+  const c1 = idUnico && companhia(idUnico);
+  const opts = `<option value="">Brasil inteiro</option>${Object.keys(REGIOES).map(r => `<optgroup label="${r}"><option value="r:${r}">Região ${r}</option>${REGIOES[r].slice().sort().map(u => `<option value="u:${u}">${esc(UF_NOMES[u])}</option>`).join('')}</optgroup>`).join('')}`;
+  abreDialogo(`<form class="frm" id="frm-rel" novalidate><h2 id="dlg-title">Relatório em Word</h2>
+    <p class="hint">${c1 ? `Relatório completo de <strong>${esc(c1.nome)}</strong>: dados, temperatura, funil, produtos, raio-x, anotações, histórico, atas e fotos.` : 'Resumo do funil, ranking de necessidade e uma página por companhia com dados, histórico, atas e fotos.'}</p>
+    ${c1 ? '' : `<fieldset class="rel-q"><legend>Quais companhias</legend>
+      <label class="rchip"><input type="radio" name="rel-q" value="lead" checked><span>Com lead</span></label>
+      <label class="rchip"><input type="radio" name="rel-q" value="reg"><span>Com algum registro</span></label>
+      <label class="rchip"><input type="radio" name="rel-q" value="todas"><span>Todas</span></label></fieldset>
+    <label><span>Onde</span><select class="io" id="rel-esc">${opts}</select></label>`}
+    <label class="chk"><input type="checkbox" id="rel-fotos" checked> Incluir fotos</label>
+    <p class="err" id="rel-err" role="alert" hidden></p>
+    <div class="btns"><button class="btn" type="button" data-act="fechar-dlg">Cancelar</button><button class="btn primary" type="submit" id="rel-ok">${ico('word', 16)} Gerar .docx</button></div></form>`);
+  $('#frm-rel').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const b = $('#rel-ok'); b.disabled = true; b.textContent = 'Gerando…';
+    try {
+      const q = c1 ? 'uma' : (document.querySelector('input[name="rel-q"]:checked') || {}).value;
+      await gerarRelatorio({ id: idUnico, q, esc: c1 ? '' : $('#rel-esc').value, fotos: $('#rel-fotos').checked });
+      fechaDialogo();
+    } catch (e) {
+      const er = $('#rel-err'); er.textContent = e && e.message === 'docx' ? 'Não foi possível carregar o gerador de Word. Recarregue a página e tente de novo.' : (e && e.msg) || 'Não foi possível gerar o relatório.'; er.hidden = false;
+      b.disabled = false; b.innerHTML = `${ico('word', 16)} Gerar .docx`;
+    }
+  });
+}
+async function dimImg(blob) { try { const bm = await createImageBitmap(blob); const d = [bm.width, bm.height]; bm.close && bm.close(); return d; } catch (e) { return null; } }
+async function gerarRelatorio(op) {
+  const D = await carregaDocx();
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ShadingType, AlignmentType, BorderStyle, ImageRun, Footer, Header, PageNumber, LevelFormat, PageBreak, LineRuleType } = D;
+  const AZ = '0B7A8F', CINZA = '5B6B70', LIN = 'D2DCDF';
+  const [tp, v] = op.esc ? op.esc.split(':') : ['', ''];
+  const noE = c => !tp || (tp === 'r' ? REG_DE[c.uf] === v : c.uf === v);
+  const nomeE = !tp ? 'Brasil' : tp === 'r' ? 'Região ' + v : UF_NOMES[v];
+  let lista = op.id ? [companhia(op.id)] : companhias().filter(noE).filter(c => {
+    const r = ler(c.id); if (op.q === 'lead') return !!r.lead; if (op.q === 'reg') return !!(r.lead || (r.log && r.log.length) || (r.atas && r.atas.length) || (r.fotos && r.fotos.length) || r.notas); return true; });
+  if (!lista.length) throw { msg: 'Nenhuma companhia com esses critérios.' };
+  const fc = faixasCias(c => noE(c)); const rkPos = new Map(fc.map(o => [o.id, o]));
+  lista.sort((a, b) => ((rkPos.get(b.id) || {}).nota || 0) - ((rkPos.get(a.id) || {}).nota || 0));
+  const W = 9638; /* largura útil A4 com margens de 2 cm, em DXA */
+  const t = (txt, o = {}) => new TextRun({ text: String(txt ?? ''), ...o });
+  const P = (filhos, o = {}) => new Paragraph({ children: Array.isArray(filhos) ? filhos : [t(filhos)], ...o });
+  const borda = { style: BorderStyle.SINGLE, size: 4, color: LIN };
+  const cel = (txt, w, o = {}) => new TableCell({ width: { size: w, type: WidthType.DXA }, margins: { top: 60, bottom: 60, left: 100, right: 100 }, borders: { top: borda, bottom: borda, left: borda, right: borda },
+    shading: o.fundo ? { type: ShadingType.CLEAR, color: 'auto', fill: o.fundo } : undefined, children: [P([t(txt, { bold: !!o.neg, color: o.cor, size: o.tam || 19 })], { alignment: o.dir ? AlignmentType.RIGHT : AlignmentType.LEFT })] });
+  const tabela = (cab, linhas, larg) => new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: larg,
+    rows: [new TableRow({ tableHeader: true, children: cab.map((h, i) => cel(h, larg[i], { neg: true, fundo: 'E6F2F4', dir: h.dir })) }), ...linhas.map(l => new TableRow({ cantSplit: true, children: l.map((x, i) => cel(x && x.txt !== undefined ? x.txt : x, larg[i], x && x.txt !== undefined ? x : {})) }))] });
+  const kv = linhas => new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [2900, W - 2900],
+    rows: linhas.filter(l => l[1] !== '' && l[1] != null).map(([k, val]) => new TableRow({ cantSplit: true, children: [cel(k, 2900, { neg: true, fundo: 'F3F6F7', cor: CINZA }), cel(val, W - 2900)] })) });
+  const bul = txt => new Paragraph({ numbering: { reference: 'bol', level: 0 }, children: Array.isArray(txt) ? txt : [t(txt)] });
+  const corpo = [];
+  /* capa e resumo */
+  corpo.push(P([t('Relatório comercial', { size: 44, bold: true, color: '0C2A33' })], { spacing: { after: 60 } }));
+  corpo.push(P([t(op.id ? lista[0].nome : `GF Saneamento · ${nomeE}`, { size: 28, color: AZ, bold: true })], { spacing: { after: 60 } }));
+  corpo.push(P([t(`Gerado em ${dataBR(hoje())}${S.autor ? ' por ' + S.autor : ''} · VRP NeoFlow, Soluções Plug & Play e Hydroramal`, { color: CINZA, size: 20 })], { spacing: { after: 240 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: AZ, space: 6 } } }));
+  if (!op.id) {
+    const ls = lista.map(c => ({ c, l: leadDe(c.id) })).filter(x => x.l), at = ls.filter(x => ATIVOS.includes(x.l.estagio));
+    const vis30 = lista.reduce((n, c) => n + (ler(c.id).log || []).filter(e => e.tipo === 'interacao' && e.t >= addDias(-30)).length, 0);
+    const ma = metaAtual();
+    corpo.push(P('Resumo', { heading: HeadingLevel.HEADING_1 }));
+    corpo.push(bul(`${lista.length} companhias neste relatório (${op.q === 'lead' ? 'com lead' : op.q === 'reg' ? 'com algum registro' : 'todas'}, ${nomeE}).`));
+    corpo.push(bul(`${at.length} leads ativos, somando ${moeda(at.reduce((s2, x) => s2 + (Number(x.l.valor) || 0), 0))} em valor estimado.`));
+    corpo.push(bul(`Temperatura dos leads ativos: ${TEMPS.map(([k2, n]) => `${at.filter(x => x.l.temp === k2).length} ${n.toLowerCase()}`).join(', ')}.`));
+    corpo.push(bul(`${vis30} interações registradas nos últimos 30 dias.`));
+    if (ma.meta) corpo.push(bul(`Meta do ${ma.rot}: ${moeda(ma.meta)}; ganho até agora: ${moeda(ma.ganho)}.`));
+    corpo.push(P('Funil por estágio', { heading: HeadingLevel.HEADING_2 }));
+    corpo.push(tabela(['Estágio', 'Leads', 'Valor estimado'], ESTAGIOS.map(([e, n]) => { const g = ls.filter(x => x.l.estagio === e); return [n, { txt: String(g.length), dir: true }, { txt: moeda(g.reduce((s2, x) => s2 + (Number(x.l.valor) || 0), 0)), dir: true }]; }), [4638, 2000, 3000]));
+    corpo.push(P('Ranking de necessidade', { heading: HeadingLevel.HEADING_1 }));
+    corpo.push(P([t(`Companhias de ${nomeE} ordenadas pela nota de necessidade (metade perdas de água, metade investimento de 2020 a 2024). Faixas: terço de cima, do meio e de baixo.`, { color: CINZA, size: 19 })], { spacing: { after: 120 } }));
+    corpo.push(tabela(['Nº', 'Companhia', 'UF', 'Nota', 'Faixa', 'Lead'], fc.map(o => { const c = companhia(o.id), l = leadDe(o.id);
+      return [{ txt: String(o.pos), dir: true }, c.nome, c.uf, { txt: nf(o.nota) + (o.est ? '*' : ''), dir: true, neg: true }, FX[o.t][0], l ? `${EST[l.estagio]} · ${TEMP[l.temp]}` : '—']; }), [600, 3738, 600, 900, 1800, 2000]));
+    corpo.push(P([t('* Nota estimada pela média das cidades do estado no Ranking do Saneamento 2026.', { color: CINZA, size: 17 })], { spacing: { before: 80 } }));
+  }
+  /* uma seção por companhia */
+  for (const c of lista) {
+    const r = ler(c.id), l = r.lead, o = necDe(c.id), i2 = CINFO[c.id] || {};
+    const rU = o && rankInfo(c.id, x => x.uf === c.uf), rR = o && rankInfo(c.id, x => REG_DE[x.uf] === REG_DE[c.uf]);
+    if (!op.id) corpo.push(new Paragraph({ children: [new PageBreak()] }));
+    corpo.push(P(c.nome, { heading: HeadingLevel.HEADING_1 }));
+    corpo.push(P([t(`${c.cidade}, ${c.uf} · ${c.ini}${c.tipo ? ' · ' + c.tipo : ''}${c.grupo ? ' · ' + c.grupo : ''}`, { color: CINZA, size: 20 })], { spacing: { after: 160 } }));
+    const ult = ultimo(c.id);
+    corpo.push(kv([
+      ['Estágio', l ? EST[l.estagio] : 'Sem lead'], ['Temperatura', l && l.temp ? TEMP[l.temp] : ''], ['Valor estimado', l && l.valor ? moeda(l.valor) : ''],
+      ['Próximo passo', l && l.prox ? l.prox + (l.proxData ? ' (' + dataBR(l.proxData) + ')' : '') : ''],
+      ['Produtos oferecidos', PRODUTOS.filter(([k2]) => (r.prod || {})[k2]).map(([, n]) => n).join(', ') || 'Nenhum ainda'],
+      ['Última visita', ult ? dataBR(ult) : 'Sem registro'],
+      ['Municípios atendidos', i2.mun || 'Sem dado público levantado'], ['Investimento previsto', i2.inv ? `${i2.inv} (fonte: ${i2.fonte})` : 'Sem dado público levantado'],
+      ['Perdas de água', o ? (o.est ? `${num1(o.ipdUF)}% em média no estado (estimativa)` : `${num1(o.ipd)}% · ${Math.round(o.ipl)} L por ligação/dia`) : ''],
+      ['Investiu de 2020 a 2024', o && !o.est ? mm(o.inv) + ' nas cidades do ranking' : ''],
+      ['Necessidade', o ? `${nf(o.nota)} de 10${o.est ? ' (estimada)' : ''} · nº ${rU.pos} de ${rU.n} em ${UF_NOMES[c.uf]} · nº ${rR.pos} de ${rR.n} na região ${REG_DE[c.uf]} · ${FX[rU.t][0]}` : ''],
+      ['Como abordar', o ? FX[rU.t][1] : '']
+    ]));
+    if (o && !o.est && o.cid.length) {
+      corpo.push(P('Cidades no Ranking do Saneamento 2026', { heading: HeadingLevel.HEADING_2 }));
+      corpo.push(tabela(['Município', 'Perdas', 'L/lig/dia', 'Invest. 2020–24', 'Nota'], o.cid.map(x => [`${x.m}, ${x.uf}`, { txt: num1(x.ipd) + '%', dir: true }, { txt: String(Math.round(x.ipl)), dir: true }, { txt: mm(x.inv), dir: true }, { txt: nf(x.nota), dir: true }]), [3638, 1400, 1400, 1900, 1300]));
+    }
+    if (r.notas && r.notas.trim()) { corpo.push(P('Anotações', { heading: HeadingLevel.HEADING_2 })); r.notas.split(/\n+/).filter(x => x.trim()).forEach(x => corpo.push(P(x))); }
+    const hist = (r.log || []).filter(e => e.tipo === 'interacao').slice(0, op.id ? 40 : 12);
+    corpo.push(P('Histórico de visitas e contatos', { heading: HeadingLevel.HEADING_2 }));
+    if (hist.length) hist.forEach(e => corpo.push(bul([t(`${dataBR(e.t)}${e.canal ? ' · ' + e.canal : ''}: `, { bold: true }), t(e.txt)])));
+    else corpo.push(P([t('Nenhuma interação registrada.', { color: CINZA })]));
+    if ((r.atas || []).length) { corpo.push(P('Atas', { heading: HeadingLevel.HEADING_2 })); r.atas.forEach(a => corpo.push(bul(`${a.titulo || a.nome} · ${dataBR(a.data)} · arquivo ${a.nome}`))); }
+    if (op.fotos && (r.fotos || []).length) {
+      const fs = r.fotos.slice().sort((a, b) => b.data.localeCompare(a.data)).slice(0, op.id ? 24 : 6), runs = [];
+      for (const fo of fs) {
+        const b = await arqGet(fo.id); if (!b || !/jpe?g|png/.test(b.type)) continue;
+        const dm = await dimImg(b); if (!dm) continue;
+        const larg = 300, alt = Math.round(larg * dm[1] / dm[0]);
+        runs.push(new Paragraph({ keepNext: true, spacing: { before: 120, line: 240, lineRule: LineRuleType.AUTO }, children: [new ImageRun({ type: /png/.test(b.type) ? 'png' : 'jpg', data: await b.arrayBuffer(), transformation: { width: larg, height: Math.min(alt, 420) } })] }));
+        runs.push(P([t(`${fo.leg ? fo.leg + ' · ' : ''}${dataBR(fo.data)}`, { color: CINZA, size: 17, italics: true })]));
+      }
+      if (runs.length) { corpo.push(P('Fotos', { heading: HeadingLevel.HEADING_2 })); corpo.push(...runs); }
+    }
+  }
+  corpo.push(P([t(`Fontes: ${FONTE_RK.nome}; planos de investimento divulgados pelas companhias. Dados de lead, visitas e fotos registrados no app Mapa GF Saneamento.`, { color: CINZA, size: 16 })], { spacing: { before: 360 } }));
+  const doc = new Document({
+    creator: S.autor || 'Mapa GF Saneamento', title: 'Relatório comercial GF Saneamento',
+    styles: { default: { document: { run: { font: 'Arial', size: 21, color: '1D2B30' }, paragraph: { spacing: { after: 80, line: 276, lineRule: LineRuleType.AUTO } } } },
+      paragraphStyles: [
+        { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { font: 'Arial', size: 32, bold: true, color: '0C2A33' }, paragraph: { spacing: { before: 240, after: 120 }, keepNext: true, outlineLevel: 0 } },
+        { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { font: 'Arial', size: 24, bold: true, color: AZ }, paragraph: { spacing: { before: 240, after: 80 }, keepNext: true, outlineLevel: 1 } }] },
+    numbering: { config: [{ reference: 'bol', levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 360, hanging: 260 } } } }] }] },
+    sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
+      headers: { default: new Header({ children: [P([t('Mapa GF Saneamento · Relatório comercial', { color: CINZA, size: 16 })], { alignment: AlignmentType.RIGHT })] }) },
+      footers: { default: new Footer({ children: [P([t('Página ', { color: CINZA, size: 16 }), new TextRun({ children: [PageNumber.CURRENT], color: CINZA, size: 16 }), t(' de ', { color: CINZA, size: 16 }), new TextRun({ children: [PageNumber.TOTAL_PAGES], color: CINZA, size: 16 })], { alignment: AlignmentType.CENTER })] }) },
+      children: corpo }]
+  });
+  const blob = await Packer.toBlob(doc);
+  const nome = `relatorio-gf-${op.id ? op.id + '-' : ''}${hoje()}.docx`;
+  if (downloads) {
+    try { await downloads.save({ filename: nome, data: blob }); toast('Relatório salvo: ' + nome); return; }
+    catch (e) { if (e && e.code === 'declined') return; if (e && e.code === 'rejected_extension') throw { msg: 'Aqui no claude.ai o download de Word não é permitido. Gere o relatório pelo site do GitHub.' }; }
+  }
+  const u = URL.createObjectURL(blob), lk = document.createElement('a'); lk.href = u; lk.download = nome; document.body.append(lk); lk.click(); lk.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
+  toast('Relatório baixado: ' + nome);
+}
 function toast(msg, acao) {
   document.querySelectorAll('.toast').forEach(t => t.remove());
   const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
@@ -1269,6 +1453,9 @@ document.addEventListener('click', ev => {
   switch (d.act) {
     case 'abrir': abreFicha(d.id, d.aba); break;
     case 'rem-lead': removeLead(d.id); break;
+    case 'ver-foto': verFoto(d.id); break;
+    case 'rem-foto': removeFoto(d.id); break;
+    case 'relatorio': formRelatorio(d.id || ''); break;
     case 'ir-cia': focaCia(d.id); abreFicha(d.id); break;
     case 'rapido': abreRapido(d.id || ''); break;
     case 'qr-cia': { const i = $('#qr-cia'); i.value = d.v; i.dispatchEvent(new Event('input')); $('#qr-txt').focus(); } break;

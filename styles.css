@@ -982,3 +982,20 @@ a.q4 { text-decoration: none; }
 .f-badges .link.danger { margin-left: auto; font-size: 13px; }
 .f-badges { flex-wrap: wrap; }
 .selo.img img { image-rendering: auto; }
+/* fotos e relatório */
+.f-acts { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.f-acts .btn { justify-content: center; }
+.fotos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.ft { position: relative; display: flex; flex-direction: column; gap: 3px; }
+.ft-b { padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: var(--surface-2); cursor: zoom-in; }
+.ft-b img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ft.sem .ft-b::after { content: "Foto indisponível"; font-size: 11px; color: var(--muted); display: grid; place-items: center; height: 100%; }
+.ft > span { font-size: 11.5px; color: var(--muted); text-align: center; }
+.ft-x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 8px; border: 0; background: color-mix(in srgb, var(--ink) 70%, transparent); color: #fff; font-size: 17px; line-height: 1; cursor: pointer; opacity: .85; }
+.ft-x:hover { background: var(--danger); opacity: 1; }
+.foto-v img { width: 100%; max-height: 72vh; object-fit: contain; border-radius: 10px; background: var(--surface-2); }
+.rel-q { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-q legend { font-size: 14px; font-weight: 600; margin-bottom: 6px; padding: 0; }
+.chk { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-weight: 500; }
+.chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+#qr-foto-l.on, #qr-ata-l.on { border-color: var(--accent); background: var(--accent-soft); }
