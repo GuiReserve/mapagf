@@ -456,7 +456,7 @@ function escala() {
   });
   svg.querySelectorAll('g.nb').forEach(b => b.setAttribute('transform', `translate(${b.dataset.x} ${b.dataset.y}) scale(${z.toFixed(3)})`));
   svg.querySelectorAll('text.lb').forEach(t => t.setAttribute('transform', `translate(${t.dataset.x} ${t.dataset.y}) scale(${Math.max(.3, z).toFixed(3)})`));
-  svg.style.touchAction = k() < .98 ? 'none' : 'pan-y';
+  svg.style.touchAction = 'none';
 }
 function limita(v) {
   const w = Math.min(VB0[2], Math.max(VB0[2] / 9, v[2])), h = w * VB0[3] / VB0[2];
@@ -490,13 +490,33 @@ function pontoSvg(ev) {
 }
 function eventosMapa() {
   const tip = $('#tip'), wrap = $('#map-wrap');
-  let drag = null, arrastou = false;
-  svg.addEventListener('pointerdown', ev => { if (ev.button) return; drag = { x: ev.clientX, y: ev.clientY, vb: vb.slice(), id: ev.pointerId }; arrastou = false; });
+  /* arrastar (mouse, caneta ou um dedo), pinça com dois dedos e roda do mouse */
+  let drag = null, arrastou = false, pinca = null;
+  const ptrs = new Map();
+  const escalaDe = (v, r) => Math.max(v[2] / r.width, v[3] / r.height);
+  const paraSvg = (cx, cy, v, r) => { const s = escalaDe(v, r), ox = (r.width - v[2] / s) / 2, oy = (r.height - v[3] / s) / 2; return [v[0] + (cx - r.left - ox) * s, v[1] + (cy - r.top - oy) * s]; };
+  const meio = () => { const a = [...ptrs.values()]; return [(a[0].x + a[1].x) / 2, (a[0].y + a[1].y) / 2, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)]; };
+  const iniciaPinca = () => { const r = svg.getBoundingClientRect(), [mx, my, d] = meio(); pinca = { vb: vb.slice(), d: Math.max(d, 1), p: paraSvg(mx, my, vb, r) }; drag = null; arrastou = true; tip.hidden = true; cancelAnimationFrame(anim); };
+  svg.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.button) return;
+    if (ev.pointerType === 'mouse') ptrs.clear();
+    ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (ptrs.size === 2) { iniciaPinca(); try { [...ptrs.keys()].forEach(i => svg.setPointerCapture(i)); } catch (e) { /* ok */ } return; }
+    if (ptrs.size === 1) { drag = { x: ev.clientX, y: ev.clientY, vb: vb.slice(), id: ev.pointerId }; arrastou = false; pinca = null; }
+  });
   svg.addEventListener('pointermove', ev => {
+    if (ptrs.has(ev.pointerId)) ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinca && ptrs.size >= 2) {
+      const r = svg.getBoundingClientRect(), [mx, my, d] = meio(), f = pinca.d / Math.max(d, 1);
+      let w = Math.min(VB0[2], Math.max(VB0[2] / 9, pinca.vb[2] * f)); const h = w * pinca.vb[3] / pinca.vb[2];
+      const s2 = Math.max(w / r.width, h / r.height), ox = (r.width - w / s2) / 2, oy = (r.height - h / s2) / 2;
+      aplica(limita([pinca.p[0] - (mx - r.left - ox) * s2, pinca.p[1] - (my - r.top - oy) * s2, w, h]));
+      return;
+    }
     if (drag && drag.id === ev.pointerId) {
       const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
-      if (!arrastou && Math.hypot(dx, dy) > 5 && k() < .98) { arrastou = true; svg.setPointerCapture(ev.pointerId); svg.classList.add('pan'); tip.hidden = true; }
-      if (arrastou) { const r = svg.getBoundingClientRect(), s = Math.max(drag.vb[2] / r.width, drag.vb[3] / r.height); cancelAnimationFrame(anim); aplica(limita([drag.vb[0] - dx * s, drag.vb[1] - dy * s, drag.vb[2], drag.vb[3]])); }
+      if (!arrastou && Math.hypot(dx, dy) > (ev.pointerType === 'mouse' ? 4 : 8)) { arrastou = true; try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* ok */ } svg.classList.add('pan'); tip.hidden = true; }
+      if (arrastou) { const r = svg.getBoundingClientRect(), s = escalaDe(drag.vb, r); cancelAnimationFrame(anim); aplica(limita([drag.vb[0] - dx * s, drag.vb[1] - dy * s, drag.vb[2], drag.vb[3]])); }
       return;
     }
     if (ev.pointerType === 'touch') return;
@@ -517,7 +537,17 @@ function eventosMapa() {
     tip.style.top = Math.max(ev.clientY - r.top, 70) + 'px';
     tip.hidden = false;
   });
-  const solta = () => { drag = null; svg.classList.remove('pan'); };
+  const solta = ev => {
+    ptrs.delete(ev.pointerId);
+    if (pinca && ptrs.size < 2) { pinca = null; if (ptrs.size === 1) { const [id, q] = [...ptrs.entries()][0]; drag = { x: q.x, y: q.y, vb: vb.slice(), id }; } else drag = null; return; }
+    drag = null; svg.classList.remove('pan');
+  };
+  svg.addEventListener('wheel', ev => {
+    ev.preventDefault(); cancelAnimationFrame(anim); tip.hidden = true;
+    const f = Math.exp(Math.max(-60, Math.min(60, ev.deltaY * (ev.deltaMode ? 16 : 1))) * .0022), [x, y] = pontoSvg(ev);
+    const w = Math.min(VB0[2], Math.max(VB0[2] / 9, vb[2] * f)), g = w / vb[2];
+    aplica(limita([x - (x - vb[0]) * g, y - (y - vb[1]) * g, w, vb[3] * g]));
+  }, { passive: false });
   svg.addEventListener('pointerup', solta); svg.addEventListener('pointercancel', solta);
   svg.addEventListener('pointerleave', () => { tip.hidden = true; });
   svg.addEventListener('click', ev => {

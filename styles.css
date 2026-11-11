@@ -190,7 +190,10 @@ main { padding: 14px 20px 24px; }
 .mover { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); border: 1px dashed var(--accent); font-size: 14.500px; }
 .map-wrap { position: relative; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--sea) 70%, var(--surface)), var(--sea)); }
 #map { display: block; width: 100%; height: min(72vh, 720px); min-height: 380px; user-select: none; -webkit-user-select: none; }
+#map { cursor: grab; touch-action: none; }
 #map.pan { cursor: grabbing; }
+#map g.pin, #map g.nb, #map path.uf { cursor: pointer; }
+#map.pan g.pin, #map.pan path.uf { cursor: grabbing; }
 #map.alvo { cursor: crosshair; }
 #map path.uf { fill: var(--land); stroke: var(--land-line); stroke-width: 1.300; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .5s var(--ease), opacity .35s var(--ease); }
 #map path.uf.rg-n { fill: var(--rg-n); }
