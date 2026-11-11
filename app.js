@@ -499,12 +499,12 @@ function eventosMapa() {
   const iniciaPinca = () => { const r = svg.getBoundingClientRect(), [mx, my, d] = meio(); pinca = { vb: vb.slice(), d: Math.max(d, 1), p: paraSvg(mx, my, vb, r) }; drag = null; arrastou = true; tip.hidden = true; cancelAnimationFrame(anim); };
   svg.addEventListener('pointerdown', ev => {
     if (ev.pointerType === 'mouse' && ev.button) return;
-    if (ev.pointerType === 'mouse') ptrs.clear();
+    if (ev.pointerType === 'mouse') { ptrs.clear(); ev.preventDefault(); }
     ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (ptrs.size === 2) { iniciaPinca(); try { [...ptrs.keys()].forEach(i => svg.setPointerCapture(i)); } catch (e) { /* ok */ } return; }
     if (ptrs.size === 1) { drag = { x: ev.clientX, y: ev.clientY, vb: vb.slice(), id: ev.pointerId }; arrastou = false; pinca = null; }
   });
-  svg.addEventListener('pointermove', ev => {
+  const moveGesto = ev => {
     if (ptrs.has(ev.pointerId)) ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pinca && ptrs.size >= 2) {
       const r = svg.getBoundingClientRect(), [mx, my, d] = meio(), f = pinca.d / Math.max(d, 1);
@@ -519,6 +519,11 @@ function eventosMapa() {
       if (arrastou) { const r = svg.getBoundingClientRect(), s = escalaDe(drag.vb, r); cancelAnimationFrame(anim); aplica(limita([drag.vb[0] - dx * s, drag.vb[1] - dy * s, drag.vb[2], drag.vb[3]])); }
       return;
     }
+  };
+  /* o arrasto segue o ponteiro mesmo fora do mapa (mouse solto fora do svg, iframe etc.) */
+  window.addEventListener('pointermove', ev => { if (ptrs.has(ev.pointerId)) moveGesto(ev); });
+  svg.addEventListener('pointermove', ev => {
+    if (ptrs.has(ev.pointerId) && (drag || pinca)) return;
     if (ev.pointerType === 'touch') return;
     const pin = ev.target.closest && ev.target.closest('g.pin'), nb = !pin && ev.target.closest && ev.target.closest('g.nb'), uf = !pin && !nb && ev.target.closest && ev.target.closest('path.uf');
     const r = wrap.getBoundingClientRect();
@@ -548,7 +553,7 @@ function eventosMapa() {
     const w = Math.min(VB0[2], Math.max(VB0[2] / 9, vb[2] * f)), g = w / vb[2];
     aplica(limita([x - (x - vb[0]) * g, y - (y - vb[1]) * g, w, vb[3] * g]));
   }, { passive: false });
-  svg.addEventListener('pointerup', solta); svg.addEventListener('pointercancel', solta);
+  window.addEventListener('pointerup', ev => { if (ptrs.has(ev.pointerId)) solta(ev); }); window.addEventListener('pointercancel', ev => { if (ptrs.has(ev.pointerId)) solta(ev); });
   svg.addEventListener('pointerleave', () => { tip.hidden = true; });
   svg.addEventListener('click', ev => {
     if (arrastou) { arrastou = false; return; }
