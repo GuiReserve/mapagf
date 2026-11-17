@@ -20,5 +20,5 @@ const P = { v: 1, s: b64(sal), iv: b64(iv), it: IT, ct: b64(ct) };
 const tpl = readFileSync(new URL('./loader.html', import.meta.url), 'utf8');
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'index.html'), tpl.replace('__PACOTE__', JSON.stringify(P)));
-copyFileSync(join(src, 'docx.min.js'), join(out, 'docx.min.js'));
+for (const f of ['docx.min.js', 'pptxgen.bundle.js']) copyFileSync(join(src, f), join(out, f));
 console.log('ok', (JSON.stringify(P).length / 1024).toFixed(0) + ' KB cifrados');
