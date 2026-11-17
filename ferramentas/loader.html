@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mapa GF Saneamento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style id="cofre-css">
+  :root { --bg: #EEF3F4; --surface: #fff; --ink: #0C2A33; --muted: #5B6B70; --line: #D2DCDF; --accent: #0B7A8F; --danger: #C2412D; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0A181E; --surface: #10232B; --ink: #E6F0F2; --muted: #98AEB6; --line: #26434E; --accent: #3FB6CB; --danger: #F0796B; } }
+  .cofre, .cofre * { box-sizing: border-box; }
+  body.travado { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg) 60%); font-family: "IBM Plex Sans", system-ui, sans-serif; color: var(--ink); padding: 20px; }
+  .cofre { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 28px 24px 22px; box-shadow: 0 18px 50px rgba(12, 42, 51, .14); display: flex; flex-direction: column; gap: 16px; }
+  .cofre .marca { display: flex; align-items: center; gap: 10px; }
+  .cofre .marca strong { font-family: "Bricolage Grotesque", sans-serif; font-size: 22px; display: block; line-height: 1.1; }
+  .cofre .marca small { color: var(--muted); letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .cofre h1 { font-family: "Bricolage Grotesque", sans-serif; font-size: 20px; margin: 4px 0 0; }
+  .cofre p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.45; }
+  .cofre label.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 14.5px; }
+  .cofre .senha { position: relative; }
+  .cofre input[type="password"], .cofre input[type="text"] { width: 100%; min-height: 48px; padding: 10px 52px 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; letter-spacing: .02em; }
+  .cofre input:focus { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+  .cofre .ver { position: absolute; right: 6px; top: 6px; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--accent); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .cofre .lembrar { display: flex; align-items: center; gap: 9px; font-size: 14.5px; }
+  .cofre .lembrar input { width: 19px; height: 19px; accent-color: var(--accent); }
+  .cofre button.entrar { min-height: 50px; border: 0; border-radius: 13px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; font-size: 16.5px; cursor: pointer; }
+  .cofre button.entrar:disabled { opacity: .6; cursor: progress; }
+  .cofre .erro { color: var(--danger); font-weight: 500; font-size: 14.5px; }
+  .cofre .rodape { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body class="travado">
+<main class="cofre" id="cofre" aria-labelledby="cofre-t">
+  <div class="marca"><svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M16 3c5 6.2 9 10.6 9 15.6A9 9 0 0 1 7 18.6C7 13.6 11 9.2 16 3z" fill="#0B7A8F"/></svg><span><strong>Mapa GF</strong><small>Saneamento</small></span></div>
+  <form id="f-cofre" novalidate>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <h1 id="cofre-t">Acesso restrito</h1>
+      <p id="cofre-msg">Digite a senha para abrir o mapa.</p>
+      <label class="campo"><span id="cofre-rot">Senha</span><span class="senha"><input type="password" id="c-senha" autocomplete="current-password" autocapitalize="none" spellcheck="false" required><button class="ver" type="button" id="c-ver" aria-pressed="false">Mostrar</button></span></label>
+      <label class="lembrar" id="c-lembrar-l"><input type="checkbox" id="c-lembrar" checked> Manter conectado neste aparelho por 30 dias</label>
+      <p class="erro" id="c-erro" role="alert" hidden></p>
+      <button class="entrar" type="submit" id="c-ok">Entrar</button>
+    </div>
+  </form>
+  <p class="rodape"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>Conteúdo e dados cifrados com AES-256. Sem a senha, nada pode ser lido.</p>
+</main>
+<script>
+(() => {
+'use strict';
+const P = __PACOTE__; /* {v, s, iv, it, ct}: app cifrado */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = u8 => { let s = ''; const b = new Uint8Array(u8); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const $ = id => document.getElementById(id);
+const K_DADOS = 'gf-saneamento-v3', K_LEGADO = 'gf-saneamento-v2';
+const chaves = new Map(); /* sal -> chave, para abrir dados feitos com uma senha anterior */
+let chave = null;
+
+if (!window.crypto || !crypto.subtle) { $('cofre-msg').textContent = 'Este navegador não tem criptografia disponível. Abra o site por https em um navegador atualizado.'; $('f-cofre').hidden = true; return; }
+
+async function deriva(senha, sal, it = P.it) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(senha.normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(sal), iterations: it }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+const abrePacote = async k => JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(P.iv) }, k, unb64(P.ct))));
+async function cifra(u8) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, chave, u8); return { s: P.s, iv: b64(iv), ct }; }
+async function decifra(env) { const k = env.s === P.s ? chave : chaves.get(env.s); if (!k) { const e = new Error('outra-senha'); e.sal = env.s; throw e; } return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, k, typeof env.ct === 'string' ? unb64(env.ct) : env.ct)); }
+
+/* chave lembrada: CryptoKey não exportável guardada no IndexedDB do aparelho */
+const db = () => new Promise((ok, no) => { const r = indexedDB.open('gf-cofre', 1); r.onupgradeneeded = () => r.result.createObjectStore('k'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+async function kv(modo, fn) { const d = await db(); return new Promise((ok, no) => { const t = d.transaction('k', modo), q = fn(t.objectStore('k')); t.oncomplete = () => ok(q && q.result); t.onerror = () => no(t.error); }); }
+const lembra = k => kv('readwrite', s => s.put({ k, s: P.s, ate: Date.now() + 30 * 864e5 }, 'chave')).catch(() => {});
+const esquece = () => kv('readwrite', s => s.delete('chave')).catch(() => {});
+const lembrada = () => kv('readonly', s => s.get('chave')).catch(() => null);
+
+/* migra arquivos (atas, fotos, logos) antigos ou feitos com outra senha para a chave atual */
+async function migraArquivos() {
+  try {
+    const d = await new Promise((ok, no) => { const r = indexedDB.open('gf-saneamento-atas', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+    const itens = await new Promise((ok, no) => { const out = [], t = d.transaction('files', 'readonly'); t.objectStore('files').openCursor().onsuccess = e => { const c = e.target.result; if (c) { out.push([c.key, c.value]); c.continue(); } }; t.oncomplete = () => ok(out); t.onerror = () => no(t.error); });
+    for (const [id, v] of itens) {
+      let novo = null;
+      if (v instanceof Blob) novo = await COFRE.cifraBlob(v);
+      else if (v && v.gfc && v.s !== P.s && chaves.has(v.s)) novo = await COFRE.cifraBlob(await COFRE.decifraBlob(v));
+      if (novo) await new Promise(ok => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').put(novo, id); t.oncomplete = ok; t.onerror = ok; });
+    }
+  } catch (e) { /* segue: arquivos antigos continuam legíveis */ }
+}
+
+let seq = 0;
+const COFRE = {
+  dados: null,
+  salvar(txt) {
+    const n = ++seq;
+    cifra(enc.encode(txt)).then(e => { if (n !== seq) return; try { localStorage.setItem(K_DADOS, JSON.stringify({ s: e.s, iv: e.iv, ct: b64(e.ct) })); localStorage.removeItem(K_LEGADO); } catch (x) { /* armazenamento cheio ou bloqueado */ } });
+  },
+  async cifraBlob(blob) { const e = await cifra(new Uint8Array(await blob.arrayBuffer())); return { gfc: 1, s: e.s, iv: e.iv, ct: e.ct, tipo: blob.type || '' }; },
+  async decifraBlob(v) { return new Blob([await decifra(v)], { type: v.tipo || '' }); },
+  async cifraTexto(txt) { const e = await cifra(enc.encode(txt)); return JSON.stringify({ app: 'mapa-gf-saneamento', cifrado: 1, it: P.it, s: e.s, iv: e.iv, ct: b64(e.ct) }); },
+  async decifraTexto(env, senha) { if (env.s !== P.s && !chaves.has(env.s) && senha) chaves.set(env.s, await deriva(senha, env.s, env.it || P.it)); return dec.decode(await decifra(env)); },
+  async sair() { await esquece(); try { sessionStorage.clear(); } catch (e) { /* idem */ } location.reload(); }
+};
+
+/* abre os dados locais; se foram gravados com uma senha anterior, pede essa senha */
+async function dadosLocais() {
+  let env = null; try { env = JSON.parse(localStorage.getItem(K_DADOS) || 'null'); } catch (e) { env = null; }
+  if (env) return dec.decode(await decifra(env));
+  let leg = null; try { leg = localStorage.getItem(K_LEGADO); } catch (e) { leg = null; }
+  if (leg) COFRE.salvar(leg); /* dados antigos em texto puro passam a ser gravados cifrados */
+  return leg;
+}
+
+function rodaApp(pac) {
+  const st = document.createElement('style'); st.textContent = pac.css; document.head.append(st);
+  $('cofre-css').remove();
+  document.body.className = ''; document.body.innerHTML = pac.html;
+  window.GF_COFRE = COFRE;
+  for (const js of pac.js) { const sc = document.createElement('script'); sc.textContent = js; document.body.append(sc); }
+  migraArquivos();
+}
+
+async function entra(k) {
+  const pac = await abrePacote(k);
+  chave = k; chaves.set(P.s, k);
+  try { COFRE.dados = await dadosLocais(); }
+  catch (e) { if (e.message === 'outra-senha') { pedeSenhaAntiga(e.sal, pac); return; } COFRE.dados = null; }
+  rodaApp(pac);
+}
+
+function pedeSenhaAntiga(sal, pac) {
+  $('cofre-t').textContent = 'A senha mudou';
+  $('cofre-msg').textContent = 'Os registros deste aparelho foram gravados com a senha anterior. Digite a senha anterior uma vez para convertê-los.';
+  $('cofre-rot').textContent = 'Senha anterior'; $('c-lembrar-l').hidden = true; $('c-senha').value = ''; $('c-ok').disabled = false; $('c-ok').textContent = 'Converter e entrar'; $('c-senha').focus();
+  modo = async senha => {
+    const k = await deriva(senha, sal);
+    chaves.set(sal, k);
+    try { COFRE.dados = await dadosLocais(); } catch (e) { chaves.delete(sal); throw e; }
+    if (COFRE.dados) COFRE.salvar(COFRE.dados);
+    rodaApp(pac);
+  };
+}
+
+let modo = async senha => { const k = await deriva(senha, P.s), quer = $('c-lembrar').checked; await abrePacote(k); if (quer) await lembra(k); await entra(k); };
+
+$('c-ver').addEventListener('click', () => { const i = $('c-senha'), v = i.type === 'password'; i.type = v ? 'text' : 'password'; $('c-ver').textContent = v ? 'Ocultar' : 'Mostrar'; $('c-ver').setAttribute('aria-pressed', String(v)); i.focus(); });
+$('f-cofre').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const senha = $('c-senha').value, er = $('c-erro'), b = $('c-ok');
+  if (!senha) { er.textContent = 'Digite a senha.'; er.hidden = false; return; }
+  b.disabled = true; b.textContent = 'Verificando…'; er.hidden = true;
+  try { await modo(senha); }
+  catch (e) { await new Promise(r => setTimeout(r, 600)); er.textContent = 'Senha incorreta.'; er.hidden = false; b.disabled = false; b.textContent = 'Entrar'; $('c-senha').select(); }
+});
+
+(async () => {
+  const m = await lembrada();
+  if (m && m.k && m.s === P.s && m.ate > Date.now()) {
+    try { await entra(m.k); return; } catch (e) { await esquece(); }
+  } else if (m) await esquece();
+  $('c-senha').focus();
+})();
+})();
+</script>
+</body>
+</html>
