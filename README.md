@@ -9,6 +9,7 @@ App comercial para quem visita clientes do saneamento (VRP NeoFlow, Soluções P
 - A senha **não fica guardada** em lugar nenhum. A opção "Manter conectado" guarda neste aparelho uma chave não exportável (CryptoKey no IndexedDB) por 30 dias; "Sair (bloquear)" apaga.
 - Os registros do aparelho (leads, anotações, atas, fotos, logos) e o backup .txt também ficam cifrados com a mesma chave.
 - Se a senha mudar, o app pede a senha anterior uma vez para converter os dados do aparelho.
+- **Histórico de versões**: o app guarda cópias cifradas dos registros ao abrir, a cada 30 minutos de uso e antes de qualquer remoção (até 150 versões). Dá para ver os leads removidos e restaurar um lead ou a versão inteira.
 
 ## Gerar uma nova versão
 `GF_SENHA='...' node ferramentas/build.mjs <pasta-do-código> <pasta-de-saída>` gera `index.html` cifrado e copia `docx.min.js`.
