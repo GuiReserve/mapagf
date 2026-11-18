@@ -11,10 +11,6 @@ App comercial para quem visita clientes do saneamento (VRP NeoFlow, Soluções P
 - **Sem internet** o app continua funcionando com a cópia do aparelho e envia as mudanças quando a conexão volta. Se duas pessoas mexerem na mesma companhia ao mesmo tempo, as mudanças de cada uma são juntadas (rastro, fotos e campos diferentes não se perdem).
 - Os registros que estavam salvos só no navegador, de antes das contas, sobem sozinhos para a conta da equipe no primeiro login daquele navegador.
 
-## Notícias
-- Aba **Notícias**: notícias de saneamento de veículos brasileiros, do dia 1º do mês escolhido até o dia da pesquisa. Filtros por tema (perdas, abastecimento, esgoto, concessões, investimentos, regulação) e por companhia citada.
-- Fonte: [GDELT DOC 2.0 API](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/), gratuita e sem chave. A busca sai do navegador de quem usa (a GDELT bloqueia os servidores compartilhados) e o resultado fica guardado na tabela `noticias` para a equipe toda. A GDELT só cobre os últimos 3 meses; meses mais antigos ficam disponíveis se alguém buscou na época.
-
 ## Segurança
 - O app inteiro é publicado **cifrado** (AES-256-GCM) com a chave da equipe. Só membros logados conseguem ler essa chave no banco; sem login, o `index.html` é só uma tela de entrada e um bloco cifrado.
 - A cópia local dos dados e os arquivos guardados no aparelho também ficam cifrados. "Sair da conta" apaga a chave do aparelho.
