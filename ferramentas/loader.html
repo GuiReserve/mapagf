@@ -12,6 +12,7 @@
   :root { --bg: #EEF3F4; --surface: #fff; --ink: #0C2A33; --muted: #5B6B70; --line: #D2DCDF; --accent: #0B7A8F; --danger: #C2412D; }
   @media (prefers-color-scheme: dark) { :root { --bg: #0A181E; --surface: #10232B; --ink: #E6F0F2; --muted: #98AEB6; --line: #26434E; --accent: #3FB6CB; --danger: #F0796B; } }
   .cofre, .cofre * { box-sizing: border-box; }
+  .cofre [hidden] { display: none !important; }
   body.travado { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg) 60%); font-family: "IBM Plex Sans", system-ui, sans-serif; color: var(--ink); padding: 20px; }
   .cofre { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 28px 24px 22px; box-shadow: 0 18px 50px rgba(12, 42, 51, .14); display: flex; flex-direction: column; gap: 16px; }
   .cofre .marca { display: flex; align-items: center; gap: 10px; }
@@ -21,7 +22,7 @@
   .cofre p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.45; }
   .cofre label.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 14.5px; }
   .cofre .senha { position: relative; }
-  .cofre input[type="password"], .cofre input[type="text"] { width: 100%; min-height: 48px; padding: 10px 52px 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; letter-spacing: .02em; }
+  .cofre input[type="password"], .cofre input[type="text"], .cofre input[type="email"] { width: 100%; min-height: 48px; padding: 10px 52px 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; letter-spacing: .02em; }
   .cofre input:focus { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
   .cofre .ver { position: absolute; right: 6px; top: 6px; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--accent); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
   .cofre .lembrar { display: flex; align-items: center; gap: 9px; font-size: 14.5px; }
@@ -29,6 +30,9 @@
   .cofre button.entrar { min-height: 50px; border: 0; border-radius: 13px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; font-size: 16.5px; cursor: pointer; }
   .cofre button.entrar:disabled { opacity: .6; cursor: progress; }
   .cofre .erro { color: var(--danger); font-weight: 500; font-size: 14.5px; }
+  .cofre .alt { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
+  .cofre .aviso { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border-radius: 12px; padding: 10px 12px; color: var(--ink); font-size: 14px; }
+  .cofre .aviso a { color: var(--accent); font-weight: 600; }
   .cofre .rodape { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 </style>
 </head>
@@ -37,130 +41,160 @@
   <div class="marca"><svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M16 3c5 6.2 9 10.6 9 15.6A9 9 0 0 1 7 18.6C7 13.6 11 9.2 16 3z" fill="#0B7A8F"/></svg><span><strong>Mapa GF</strong><small>Saneamento</small></span></div>
   <form id="f-cofre" novalidate>
     <div style="display:flex;flex-direction:column;gap:14px">
-      <h1 id="cofre-t">Acesso restrito</h1>
-      <p id="cofre-msg">Digite a senha para abrir o mapa.</p>
+      <h1 id="cofre-t">Entrar</h1>
+      <p id="cofre-msg">Use o e-mail e a senha da sua conta da equipe. Os leads ficam salvos na conta e aparecem em qualquer aparelho.</p>
+      <label class="campo" id="l-nome" hidden><span>Seu nome</span><input type="text" id="c-nome" autocomplete="name"></label>
+      <label class="campo"><span>E-mail</span><input type="email" id="c-email" autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="email" required></label>
       <label class="campo"><span id="cofre-rot">Senha</span><span class="senha"><input type="password" id="c-senha" autocomplete="current-password" autocapitalize="none" spellcheck="false" required><button class="ver" type="button" id="c-ver" aria-pressed="false">Mostrar</button></span></label>
-      <label class="lembrar" id="c-lembrar-l"><input type="checkbox" id="c-lembrar" checked> Manter conectado neste aparelho por 30 dias</label>
+      <label class="campo" id="l-codigo" hidden><span>Código de primeiro acesso</span><input type="text" id="c-codigo" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
       <p class="erro" id="c-erro" role="alert" hidden></p>
       <button class="entrar" type="submit" id="c-ok">Entrar</button>
+      <button class="alt" type="button" id="c-modo">Primeiro acesso da equipe</button>
+      <p class="aviso" id="c-aviso" hidden></p>
     </div>
   </form>
-  <p class="rodape"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>Conteúdo e dados cifrados com AES-256. Sem a senha, nada pode ser lido.</p>
+  <p class="rodape"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>Só quem foi convidado pela equipe entra. O app e os dados guardados no aparelho são cifrados com AES-256.</p>
 </main>
+<script src="supabase.js"></script>
 <script>
 (() => {
 'use strict';
-const P = __PACOTE__; /* {v, s, iv, it, ct}: app cifrado */
+const P = __PACOTE__; /* {v:2, iv, ct}: app cifrado com a chave da equipe */
+const SB_URL = '__SB_URL__', SB_KEY = '__SB_KEY__', SITE = 'https://guireserve.github.io/mapagf/';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = u8 => { let s = ''; const b = new Uint8Array(u8); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const $ = id => document.getElementById(id);
-const K_DADOS = 'gf-saneamento-v3', K_LEGADO = 'gf-saneamento-v2';
-const chaves = new Map(); /* sal -> chave, para abrir dados feitos com uma senha anterior */
-let chave = null;
+const SAL = 'equipe'; /* marca dos dados cifrados com a chave da equipe */
+const chaves = new Map(); /* sal -> chave; inclui a chave da senha antiga do site, para migrar dados */
+let chave = null, primeiro = false;
+const erro = t => { const er = $('c-erro'); er.textContent = t; er.hidden = !t; };
+const aviso = h => { const a = $('c-aviso'); a.innerHTML = h || ''; a.hidden = !h; };
 
 if (!window.crypto || !crypto.subtle) { $('cofre-msg').textContent = 'Este navegador não tem criptografia disponível. Abra o site por https em um navegador atualizado.'; $('f-cofre').hidden = true; return; }
+if (!window.supabase) { $('cofre-msg').textContent = 'Não foi possível carregar o acesso. Recarregue a página.'; $('f-cofre').hidden = true; return; }
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'gf-sessao' } });
 
-async function deriva(senha, sal, it = P.it) {
+async function deriva(senha, sal, it = 600000) {
   const base = await crypto.subtle.importKey('raw', enc.encode(senha.normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(sal), iterations: it }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
+const importa = b => crypto.subtle.importKey('raw', unb64(b), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 const abrePacote = async k => JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(P.iv) }, k, unb64(P.ct))));
-async function cifra(u8) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, chave, u8); return { s: P.s, iv: b64(iv), ct }; }
-async function decifra(env) { const k = env.s === P.s ? chave : chaves.get(env.s); if (!k) { const e = new Error('outra-senha'); e.sal = env.s; throw e; } return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, k, typeof env.ct === 'string' ? unb64(env.ct) : env.ct)); }
+async function cifra(u8) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, chave, u8); return { s: SAL, iv: b64(iv), ct }; }
+async function decifra(env) { const k = env.s === SAL ? chave : chaves.get(env.s); if (!k) { const e = new Error('outra-senha'); e.sal = env.s; throw e; } return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, k, typeof env.ct === 'string' ? unb64(env.ct) : env.ct)); }
 
-/* chave lembrada: CryptoKey não exportável guardada no IndexedDB do aparelho */
-const db = () => new Promise((ok, no) => { const r = indexedDB.open('gf-cofre', 1); r.onupgradeneeded = () => r.result.createObjectStore('k'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+/* chave da equipe lembrada no aparelho (CryptoKey não exportável), para abrir sem rede */
+const db = () => new Promise((ok, no) => { const r = indexedDB.open('gf-porta', 1); r.onupgradeneeded = () => r.result.createObjectStore('k'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 async function kv(modo, fn) { const d = await db(); return new Promise((ok, no) => { const t = d.transaction('k', modo), q = fn(t.objectStore('k')); t.oncomplete = () => ok(q && q.result); t.onerror = () => no(t.error); }); }
-const lembra = k => kv('readwrite', s => s.put({ k, s: P.s, ate: Date.now() + 30 * 864e5 }, 'chave')).catch(() => {});
+const lembra = k => kv('readwrite', s => s.put(k, 'chave')).catch(() => {});
 const esquece = () => kv('readwrite', s => s.delete('chave')).catch(() => {});
 const lembrada = () => kv('readonly', s => s.get('chave')).catch(() => null);
-
-/* migra arquivos (atas, fotos, logos) antigos ou feitos com outra senha para a chave atual */
-async function migraArquivos() {
-  try {
-    const d = await new Promise((ok, no) => { const r = indexedDB.open('gf-saneamento-atas', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
-    const itens = await new Promise((ok, no) => { const out = [], t = d.transaction('files', 'readonly'); t.objectStore('files').openCursor().onsuccess = e => { const c = e.target.result; if (c) { out.push([c.key, c.value]); c.continue(); } }; t.oncomplete = () => ok(out); t.onerror = () => no(t.error); });
-    for (const [id, v] of itens) {
-      let novo = null;
-      if (v instanceof Blob) novo = await COFRE.cifraBlob(v);
-      else if (v && v.gfc && v.s !== P.s && chaves.has(v.s)) novo = await COFRE.cifraBlob(await COFRE.decifraBlob(v));
-      if (novo) await new Promise(ok => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').put(novo, id); t.oncomplete = ok; t.onerror = ok; });
-    }
-  } catch (e) { /* segue: arquivos antigos continuam legíveis */ }
+async function buscaChave() {
+  const { data, error } = await sb.from('chave_app').select('chave').eq('id', 1).maybeSingle();
+  if (error) { const e = new Error('rede'); e.det = error; throw e; }
+  if (!data) throw new Error('sem-acesso');
+  return importa(data.chave);
 }
 
+let uidAtual = '';
+const K_DADOS = () => 'gf-dados-' + uidAtual;
 let seq = 0;
 const COFRE = {
   dados: null,
   salvar(txt) {
     const n = ++seq;
-    cifra(enc.encode(txt)).then(e => { if (n !== seq) return; try { localStorage.setItem(K_DADOS, JSON.stringify({ s: e.s, iv: e.iv, ct: b64(e.ct) })); localStorage.removeItem(K_LEGADO); } catch (x) { /* armazenamento cheio ou bloqueado */ } });
+    cifra(enc.encode(txt)).then(e => { if (n !== seq) return; try { localStorage.setItem(K_DADOS(), JSON.stringify({ s: e.s, iv: e.iv, ct: b64(e.ct) })); } catch (x) { /* armazenamento cheio ou bloqueado */ } });
   },
   async cifraBlob(blob) { const e = await cifra(new Uint8Array(await blob.arrayBuffer())); return { gfc: 1, s: e.s, iv: e.iv, ct: e.ct, tipo: blob.type || '' }; },
   async decifraBlob(v) { return new Blob([await decifra(v)], { type: v.tipo || '' }); },
-  async cifraTexto(txt) { const e = await cifra(enc.encode(txt)); return JSON.stringify({ app: 'mapa-gf-saneamento', cifrado: 1, it: P.it, s: e.s, iv: e.iv, ct: b64(e.ct) }); },
-  async decifraTexto(env, senha) { if (env.s !== P.s && !chaves.has(env.s) && senha) chaves.set(env.s, await deriva(senha, env.s, env.it || P.it)); return dec.decode(await decifra(env)); },
-  async sair() { await esquece(); try { sessionStorage.clear(); } catch (e) { /* idem */ } location.reload(); }
+  async cifraTexto(txt) { const e = await cifra(enc.encode(txt)); return JSON.stringify({ app: 'mapa-gf-saneamento', cifrado: 1, s: e.s, iv: e.iv, ct: b64(e.ct) }); },
+  async decifraTexto(env, senha) { if (env.s !== SAL && !chaves.has(env.s) && senha) chaves.set(env.s, await deriva(senha, env.s, env.it || 600000)); return dec.decode(await decifra(env)); },
+  /* registros que este navegador guardava antes da conta da equipe */
+  legado() { let v3 = null, v2 = null; try { v3 = JSON.parse(localStorage.getItem('gf-saneamento-v3') || 'null'); v2 = localStorage.getItem('gf-saneamento-v2'); } catch (e) { /* nada */ } return { v3, v2, feito: !!localStorage.getItem('gf-legado-enviado') }; },
+  legadoFeito() { try { localStorage.setItem('gf-legado-enviado', new Date().toISOString()); } catch (e) { /* idem */ } },
+  async sair() { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { /* sem rede */ } await esquece(); try { sessionStorage.clear(); } catch (e) { /* idem */ } location.reload(); }
 };
 
-/* abre os dados locais; se foram gravados com uma senha anterior, pede essa senha */
 async function dadosLocais() {
-  let env = null; try { env = JSON.parse(localStorage.getItem(K_DADOS) || 'null'); } catch (e) { env = null; }
-  if (env) return dec.decode(await decifra(env));
-  let leg = null; try { leg = localStorage.getItem(K_LEGADO); } catch (e) { leg = null; }
-  if (leg) COFRE.salvar(leg); /* dados antigos em texto puro passam a ser gravados cifrados */
-  return leg;
+  let env = null; try { env = JSON.parse(localStorage.getItem(K_DADOS()) || 'null'); } catch (e) { env = null; }
+  if (!env) return null;
+  try { return dec.decode(await decifra(env)); } catch (e) { return null; }
 }
 
-function rodaApp(pac) {
+function rodaApp(pac, sessao) {
   const st = document.createElement('style'); st.textContent = pac.css; document.head.append(st);
   $('cofre-css').remove();
   document.body.className = ''; document.body.innerHTML = pac.html;
   window.GF_COFRE = COFRE;
+  window.GF_NUVEM = { sb, user: sessao.user, email: (sessao.user.email || '').toLowerCase(), site: SITE };
   for (const js of pac.js) { const sc = document.createElement('script'); sc.textContent = js; document.body.append(sc); }
-  migraArquivos();
 }
 
-async function entra(k) {
+async function entra(k, sessao) {
   const pac = await abrePacote(k);
-  chave = k; chaves.set(P.s, k);
-  try { COFRE.dados = await dadosLocais(); }
-  catch (e) { if (e.message === 'outra-senha') { pedeSenhaAntiga(e.sal, pac); return; } COFRE.dados = null; }
-  rodaApp(pac);
+  chave = k; uidAtual = sessao.user.id;
+  COFRE.dados = await dadosLocais();
+  rodaApp(pac, sessao);
 }
 
-function pedeSenhaAntiga(sal, pac) {
-  $('cofre-t').textContent = 'A senha mudou';
-  $('cofre-msg').textContent = 'Os registros deste aparelho foram gravados com a senha anterior. Digite a senha anterior uma vez para convertê-los.';
-  $('cofre-rot').textContent = 'Senha anterior'; $('c-lembrar-l').hidden = true; $('c-senha').value = ''; $('c-ok').disabled = false; $('c-ok').textContent = 'Converter e entrar'; $('c-senha').focus();
-  modo = async senha => {
-    const k = await deriva(senha, sal);
-    chaves.set(sal, k);
-    try { COFRE.dados = await dadosLocais(); } catch (e) { chaves.delete(sal); throw e; }
-    if (COFRE.dados) COFRE.salvar(COFRE.dados);
-    rodaApp(pac);
-  };
+const semRede = e => e && (e.message === 'rede' || e.name === 'TypeError' || /fetch|network|Failed/i.test(String(e.message || e)));
+function avisoRede() {
+  const noClaude = /claude|anthropic/i.test(location.hostname) || !!window.claude;
+  aviso(noClaude ? `Aqui no claude.ai o app não consegue falar com o servidor da equipe. Abra pelo site: <a href="${SITE}" target="_blank" rel="noopener">${SITE.replace('https://', '')}</a>` : 'Sem conexão com o servidor. Confira a internet e tente de novo.');
 }
 
-let modo = async senha => { const k = await deriva(senha, P.s), quer = $('c-lembrar').checked; await abrePacote(k); if (quer) await lembra(k); await entra(k); };
-
+/* modos do formulário: entrar ou primeiro acesso */
+function trocaModo(p) {
+  primeiro = p;
+  $('cofre-t').textContent = p ? 'Primeiro acesso da equipe' : 'Entrar';
+  $('cofre-msg').textContent = p ? 'Crie a primeira conta da equipe. Ela vira administradora e depois convida as outras pessoas pelo app. O código é a senha antiga do site.' : 'Use o e-mail e a senha da sua conta da equipe. Os leads ficam salvos na conta e aparecem em qualquer aparelho.';
+  $('l-nome').hidden = !p; $('l-codigo').hidden = !p;
+  $('c-senha').autocomplete = p ? 'new-password' : 'current-password';
+  $('cofre-rot').textContent = p ? 'Crie uma senha (mínimo 8 caracteres)' : 'Senha';
+  $('c-ok').textContent = p ? 'Criar conta e entrar' : 'Entrar';
+  $('c-modo').textContent = p ? 'Já tenho conta: entrar' : 'Primeiro acesso da equipe';
+  erro(''); (p ? $('c-nome') : $('c-email')).focus();
+}
+$('c-modo').addEventListener('click', () => trocaModo(!primeiro));
 $('c-ver').addEventListener('click', () => { const i = $('c-senha'), v = i.type === 'password'; i.type = v ? 'text' : 'password'; $('c-ver').textContent = v ? 'Ocultar' : 'Mostrar'; $('c-ver').setAttribute('aria-pressed', String(v)); i.focus(); });
+const MSG = { GF_CODIGO: 'Código de primeiro acesso incorreto.', GF_JA_TEM_EQUIPE: 'A equipe já tem conta. Peça para alguém da equipe convidar você pelo app (menu Equipe).', GF_EMAIL_INVALIDO: 'Confira o e-mail.', GF_SENHA_CURTA: 'A senha precisa ter pelo menos 8 caracteres.' };
 $('f-cofre').addEventListener('submit', async ev => {
   ev.preventDefault();
-  const senha = $('c-senha').value, er = $('c-erro'), b = $('c-ok');
-  if (!senha) { er.textContent = 'Digite a senha.'; er.hidden = false; return; }
-  b.disabled = true; b.textContent = 'Verificando…'; er.hidden = true;
-  try { await modo(senha); }
-  catch (e) { await new Promise(r => setTimeout(r, 600)); er.textContent = 'Senha incorreta.'; er.hidden = false; b.disabled = false; b.textContent = 'Entrar'; $('c-senha').select(); }
+  const email = $('c-email').value.trim().toLowerCase(), senha = $('c-senha').value, b = $('c-ok'), rot = b.textContent;
+  if (!email || !senha) { erro('Preencha o e-mail e a senha.'); return; }
+  b.disabled = true; b.textContent = 'Verificando…'; erro(''); aviso('');
+  try {
+    if (primeiro) {
+      const { error } = await sb.rpc('primeiro_acesso', { p_email: email, p_nome: $('c-nome').value.trim(), p_senha: senha, p_codigo: $('c-codigo').value.trim() });
+      if (error) { const m = Object.keys(MSG).find(k => String(error.message).includes(k)); if (m) { erro(MSG[m]); throw null; } throw new Error('rede'); }
+    }
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+    if (error) { if (error.status === 400 || /invalid/i.test(error.message)) { await new Promise(r => setTimeout(r, 500)); erro('E-mail ou senha incorretos.'); throw null; } throw new Error('rede'); }
+    let k;
+    try { k = await buscaChave(); } catch (e) { if (e.message === 'sem-acesso') { await sb.auth.signOut({ scope: 'local' }); erro('Esta conta não faz mais parte da equipe.'); throw null; } throw e; }
+    await lembra(k);
+    await entra(k, data.session);
+  } catch (e) {
+    if (e && semRede(e)) avisoRede(); else if (e) erro('Não foi possível entrar. Tente de novo.');
+    b.disabled = false; b.textContent = rot;
+  }
 });
 
 (async () => {
-  const m = await lembrada();
-  if (m && m.k && m.s === P.s && m.ate > Date.now()) {
-    try { await entra(m.k); return; } catch (e) { await esquece(); }
-  } else if (m) await esquece();
-  $('c-senha').focus();
+  let sessao = null;
+  try { sessao = (await sb.auth.getSession()).data.session; } catch (e) { sessao = null; }
+  if (sessao) {
+    let k = await lembrada();
+    try {
+      if (!k) { k = await buscaChave(); await lembra(k); }
+      await entra(k, sessao); return;
+    } catch (e) {
+      if (e && e.message === 'sem-acesso') { await esquece(); await sb.auth.signOut({ scope: 'local' }); erro('Esta conta não faz mais parte da equipe.'); }
+      else if (semRede(e)) avisoRede();
+    }
+  }
+  $('c-email').focus();
 })();
 })();
 </script>
